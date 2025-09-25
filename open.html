@@ -3,26 +3,29 @@
 <head>
   <meta name="robots" content="noindex">
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Redirecting...</title>
-
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; padding:16px; text-align:center; }
     #log { margin-top:12px; color:#444; white-space:pre-wrap; font-size:14px; }
     .pb { position:fixed; bottom:1em; left:0; right:0; font-size:12px; color:#bbb; }
     .pb a { color:#d3d3d3; text-decoration:none; }
-    button { padding:12px 18px; font-size:16px; margin-top:18px; }
+    button { padding:12px 18px; font-size:16px; margin-top:18px; display:none; }
   </style>
 </head>
 <body>
   <h3>Opening the app…</h3>
   <div id="log"></div>
-  <button id="retryBtn" style="display:none">Try Again</button>
+  <button id="retryBtn">Try Again</button>
   <p class="pb"><a href="https://linktw.in/?reff=poweredby">POWERED BY LINKTW.IN</a></p>
 
   <script>
-    /* =================== CONFIG =================== */
-    const DEFAULT_URL = "https://www.flipkart.com/";
+    // =================== CONFIG (from snippet #1 + #2) ===================
+    const AMAZON_AFF_TAG = "shalinisin03e-21"; // change if needed
+    const ENFORCE_TAG = true;                   // set false to NOT inject tag when missing
+    const DEFAULT_URL = "https://www.flipkart.com/"; // safe fallback
+
+    // Known app meta (from snippet #2)
     const APPS = {
       flipkart: {
         test: /(^|\.)flipkart\.com$/i,
@@ -31,7 +34,9 @@
         iosStoreUrl: "https://apps.apple.com/in/app/flipkart-shop-online/id742044692"
       },
       amazon: {
+        // allow many amazon TLDs
         test: /(^|\.)amazon\.(in|com|ae|de|co\.uk|ca|com\.au|fr|it|es|nl|sg|jp)$/i,
+        // unified scheme used in both snippets
         schemePrefix: "com.amazon.mobile.shopping.web://",
         androidPackage: "com.amazon.mShop.android.shopping",
         iosStoreUrl: "https://apps.apple.com/in/app/amazon-shopping/id297606951"
@@ -43,141 +48,228 @@
         iosStoreUrl: "https://apps.apple.com/in/app/myntra-fashion-shopping-app/id907394059"
       }
     };
-    /* ============================================= */
 
-    function log(...args){ document.getElementById('log').textContent += args.join(' ') + "\n"; }
+    // =================== UTIL + LOG ===================
+    function log(){
+      const el = document.getElementById('log');
+      el.textContent += Array.from(arguments).join(' ') + "\n";
+    }
     function ua(){ return navigator.userAgent || navigator.vendor || window.opera || ""; }
+
+    // Device helpers (union of both snippets)
     function isAndroid(){ return /Android/i.test(ua()); }
     function isIOS(){ return /iPad|iPhone|iPod/i.test(ua()) && !window.MSStream; }
-    function isInstagram(){ return /Instagram/i.test(ua()); }
+    function isSafari(){ return /safari/i.test(ua()) && !/CriOS|FxiOS/i.test(ua()); }
     function isMobileSafari(){ return /iP(hone|od|ad).+Safari/i.test(ua()) && !/CriOS|FxiOS/i.test(ua()); }
+    function isMobileBrowser(){ return /CriOS|FxiOS|chrome.*mobile|firefox.*mobile|opera.*mobile/i.test(ua()) || isMobileSafari(); }
+    function isInstagram(){ return /Instagram/i.test(ua()); }
+    function isFbBrowser(){ return /FBAN|FBAV/i.test(ua()); }
+    function isChromeMob(){ return /CriOS/i.test(ua()); }
 
-    function getQueryParam(name){
-      const sp = new URLSearchParams(location.search);
-      return sp.get(name);
-    }
-
-    // ✅ auto-encode a URL
-    function autoEncodeUrl(u){
+    // URL helpers (superset of snippet #1 + #2)
+    function getSearchParams(url){ try { return new URL(url).searchParams; } catch { return new URLSearchParams(); } }
+    function safeDecode(str){ try { return decodeURIComponent(str); } catch { return str; } }
+    function tryBase64Decode(str){
       try {
-        // First decode if already encoded
-        let decoded = decodeURIComponent(u);
-        return encodeURI(decoded);
-      } catch {
-        // fallback: just encode directly
-        return encodeURI(u);
+        if (!/^[A-Za-z0-9+/=]+$/.test(str) || str.length % 4 !== 0) return str;
+        const decoded = atob(str);
+        if (/^https?:\/\//i.test(decoded) || /^www\./i.test(decoded)) return decoded;
+        return str;
+      } catch { return str; }
+    }
+    function extractFromPrettyPath(){
+      const path = location.pathname || "";
+      const parts = path.split("/").filter(Boolean);
+      if (parts.length >= 2 && /^(go|r|redirect)$/i.test(parts[0])) {
+        return parts.slice(1).join("/");
       }
+      return null;
+    }
+    function collectCandidateStrings(){
+      const href = location.href;
+      const sp = getSearchParams(href);
+      const hash = (location.hash || "").replace(/^#/, "");
+      const hashParams = new URLSearchParams(hash);
+      const keys = ["url","u","link","l","redirect","r","target","to","q"];
+      const candidates = [];
+      keys.forEach(k => { if (sp.get(k)) candidates.push(sp.get(k)); });
+      keys.forEach(k => { if (hashParams.get(k)) candidates.push(hashParams.get(k)); });
+      const urlMatch = href.match(/https?:\/\/[^\s"'<>]+/i);
+      if (urlMatch) candidates.push(urlMatch[0]);
+      const pretty = extractFromPrettyPath();
+      if (pretty) candidates.push(pretty);
+      return [...new Set(candidates.filter(Boolean))];
+    }
+    function normalizeToUrl(raw){
+      if (!raw) return null;
+      raw = raw.trim().replace(/^['"]|['"]$/g, "");
+      let decoded = safeDecode(raw);
+      decoded = tryBase64Decode(decoded);
+      decoded = safeDecode(decoded);
+      if (!/^https?:\/\//i.test(decoded)) {
+        if (/^www\./i.test(decoded)) decoded = "https://" + decoded;
+      }
+      try { return new URL(decoded).href; } catch { return null; }
     }
 
-    function cleanUrl(raw){
-      if (!raw) return "";
-      raw = raw.trim();
-      try {
-        // decode once if percent-encoded
-        try {
-          const maybe = decodeURIComponent(raw);
-          if (/^(https?:\/\/|[a-z]+:\/\/)/i.test(maybe)) raw = maybe;
-        } catch(e){}
-        if (!/^(https?:\/\/|[a-z]+:\/\/)/i.test(raw)) raw = "https://" + raw;
-        const parsed = new URL(raw);
-        return parsed.toString();
-      } catch(e){ return ""; }
-    }
-
-    function extractTarget(){
-      const raw = getQueryParam("u") || getQueryParam("url");
-      const cleaned = cleanUrl(raw);
-      if (cleaned) { 
-        const encoded = autoEncodeUrl(cleaned);
-        log("Extracted and encoded URL:", encoded); 
-        return encoded; 
+    // Prefer Amazon/Flipkart/Myntra if present; else first valid URL; else DEFAULT_URL
+    function pickMainUrl(){
+      const candidates = collectCandidateStrings();
+      const prefer = [ /\/\/([a-z0-9-]+\.)*amazon\./i, /\/\/([a-z0-9-]+\.)*flipkart\.com/i, /\/\/([a-z0-9-]+\.)*myntra\.com/i ];
+      for (const p of prefer){
+        for (const c of candidates){
+          const u = normalizeToUrl(c);
+          if (u && p.test(u)) return u;
+        }
       }
-      log("No ?u= provided. Using default:", DEFAULT_URL);
+      for (const c of candidates){
+        const u = normalizeToUrl(c);
+        if (u) return u;
+      }
       return DEFAULT_URL;
     }
 
+    // Auto-encode a URL (from snippet #2)
+    function autoEncodeUrl(u){
+      try { let d = decodeURIComponent(u); return encodeURI(d); } catch { return encodeURI(u); }
+    }
+
+    // Amazon affiliate tag normalization (from snippet #1)
+    function ensureAmazonAffiliateTag(urlStr){
+      try {
+        const u = new URL(urlStr);
+        const isAmazon = /(^|\.)amazon\./i.test(u.hostname);
+        if (!isAmazon) return urlStr;
+        if (u.searchParams.has("tag")) return u.toString();
+        if (ENFORCE_TAG && AMAZON_AFF_TAG) u.searchParams.set("tag", AMAZON_AFF_TAG);
+        return u.toString();
+      } catch { return urlStr; }
+    }
+
+    // Build deep link by detected host (union of snippets)
     function detectAppMeta(target){
       try {
         const host = new URL(target).hostname.toLowerCase();
-        for (const key in APPS){
-          if (APPS[key].test.test(host)) return APPS[key];
-        }
+        for (const key in APPS){ if (APPS[key].test.test(host)) return APPS[key]; }
       } catch(e){}
       return null;
     }
-
     function stripProtocol(u){ return u.replace(/^https?:\/\//i, ""); }
 
-    const targetUrl = extractTarget();
-    const appMeta = detectAppMeta(targetUrl);
-    const device = isAndroid() ? "android" : (isIOS() ? "ios" : "desktop");
-    let appDeepLink = null;
+    // ======== MAIN FLOW (combined behavior) ========
+    (function redirect(){
+      // 1) Extract best URL from URL bar (snippet #1), with fallback to DEFAULT_URL
+      let mainUrl = pickMainUrl();
 
-    if (appMeta && /^https?:\/\//i.test(targetUrl)) {
-      appDeepLink = appMeta.schemePrefix + stripProtocol(targetUrl);
-    } else if (/^[a-z]+:\/\//i.test(targetUrl)) {
-      appDeepLink = targetUrl;
-    }
+      // 2) If query-style ?u= or ?url= was given, prefer it (snippet #2), but only if valid
+      try {
+        const sp = new URLSearchParams(location.search);
+        const rawQ = sp.get("u") || sp.get("url");
+        if (rawQ) {
+          const cleaned = (function cleanUrl(raw){
+            if (!raw) return "";
+            raw = raw.trim();
+            try {
+              try { const maybe = decodeURIComponent(raw); if (/^(https?:\/\/|[a-z]+:\/\/)/i.test(maybe)) raw = maybe; } catch{}
+              if (!/^(https?:\/\/|[a-z]+:\/\/)/i.test(raw)) raw = "https://" + raw;
+              const parsed = new URL(raw);
+              return parsed.toString();
+            } catch { return ""; }
+          })(rawQ);
+          if (cleaned) mainUrl = cleaned;
+        }
+      } catch {}
 
-    function openNow(){
-      if (isInstagram() && isIOS()) {
-        log("Instagram iOS detected — trying to open in Safari.");
-        const a = document.createElement('a');
-        a.href = targetUrl; a.target = "_blank"; a.rel = "noopener";
-        document.body.appendChild(a); a.click(); a.remove();
-        document.getElementById("retryBtn").style.display = "inline-block";
-        return;
+      // 3) Normalize/encode and enforce Amazon tag if applicable
+      mainUrl = autoEncodeUrl(mainUrl);
+      mainUrl = ensureAmazonAffiliateTag(mainUrl);
+
+      // 4) Decide target app vs plain web
+      const appMeta = detectAppMeta(mainUrl);
+      const device = isAndroid() ? "android" : (isIOS() ? "ios" : "desktop");
+
+      // 5) Build app deep link (scheme)
+      let appDeepLink = null;
+      if (appMeta && /^https?:\/\//i.test(mainUrl)) {
+        appDeepLink = appMeta.schemePrefix + stripProtocol(mainUrl);
+      } else if (/^[a-z]+:\/\//i.test(mainUrl)) {
+        appDeepLink = mainUrl;
       }
 
-      if (device === "desktop") {
-        log("Desktop detected — opening web URL.");
-        location.replace(targetUrl);
-        return;
+      // 6) Special-case environments from both snippets
+      const isFbMios = /FBCR/i.test(ua()) && /iPhone/i.test(ua()); // snippet #1
+
+      // 7) Start redirect logic
+      function openNow(){
+        // Instagram iOS: open Safari first (snippet #2)
+        if (isInstagram() && device === 'ios') {
+          log("Instagram iOS detected — trying to open in Safari.");
+          const a = document.createElement('a');
+          a.href = mainUrl; a.target = "_blank"; a.rel = "noopener";
+          document.body.appendChild(a); a.click(); a.remove();
+          document.getElementById('retryBtn').style.display = 'inline-block';
+          return;
+        }
+
+        // FB Messenger iOS: simple web redirect (snippet #1)
+        if (isFbMios) {
+          log("FB Messenger iOS — opening web URL.");
+          location.replace(mainUrl);
+          return;
+        }
+
+        if (device === 'desktop') {
+          log("Desktop detected — opening web URL.");
+          location.replace(mainUrl);
+          return;
+        }
+
+        let attemptedScheme = false;
+        if (appDeepLink) {
+          attemptedScheme = true;
+          log("Trying app deep link:", appDeepLink);
+          try { window.location = appDeepLink; } catch(e){}
+        }
+
+        if (device === 'android') {
+          const pkg = appMeta && appMeta.androidPackage ? `;package=${appMeta.androidPackage}` : "";
+          const intent = "intent:" + stripProtocol(mainUrl) +
+                         "#Intent;action=android.intent.action.VIEW" +
+                         pkg +
+                         ";S.browser_fallback_url=" + encodeURIComponent(mainUrl) +
+                         ";end";
+          setTimeout(() => { log("Android intent fallback:", intent); window.location = intent; }, attemptedScheme ? 450 : 0);
+          setTimeout(() => { log("Final web fallback:", mainUrl); window.location = mainUrl; }, 1100);
+          return;
+        }
+
+        if (device === 'ios') {
+          // iOS store fallback if recognized app, else web (snippet #2)
+          const store = appMeta ? appMeta.iosStoreUrl : null;
+
+          // Additional explicit Safari pathway (from snippet #1 intent)
+          setTimeout(() => {
+            if (document.visibilityState === 'hidden') return; // app opened
+            if (store) { log("iOS App Store fallback:", store); window.location = store; }
+          }, attemptedScheme ? 1200 : 600);
+
+          setTimeout(() => {
+            if (document.visibilityState === 'hidden') return;
+            log("Final web fallback:", mainUrl);
+            window.location = mainUrl;
+          }, 2000);
+          return;
+        }
       }
 
-      let attemptedScheme = false;
-      if (appDeepLink) {
-        attemptedScheme = true;
-        log("Trying app deep link:", appDeepLink);
-        try { window.location = appDeepLink; } catch(e){}
-      }
+      // visibility guard from snippet #1
+      let fired = false;
+      const visHandler = () => { if (document.hidden && !fired) { fired = true; /* no-op when app opens */ } };
+      document.addEventListener("visibilitychange", visHandler, { once: true });
 
-      if (device === "android") {
-        const pkg = appMeta && appMeta.androidPackage ? `;package=${appMeta.androidPackage}` : "";
-        const intent = "intent:" + stripProtocol(targetUrl) +
-                       "#Intent;action=android.intent.action.VIEW" +
-                       pkg +
-                       ";S.browser_fallback_url=" + encodeURIComponent(targetUrl) +
-                       ";end";
-        setTimeout(() => { log("Android intent fallback:", intent); window.location = intent; }, attemptedScheme ? 450 : 0);
-        setTimeout(() => { log("Final web fallback:", targetUrl); window.location = targetUrl; }, 1100);
-        return;
-      }
-
-      if (device === "ios") {
-        const store = appMeta ? appMeta.iosStoreUrl : null;
-        setTimeout(() => {
-          if (document.visibilityState === "hidden") return;
-          if (store) {
-            log("iOS App Store fallback:", store);
-            window.location = store;
-          } else {
-            log("iOS web fallback:", targetUrl);
-            window.location = targetUrl;
-          }
-        }, attemptedScheme ? 1200 : 600);
-
-        setTimeout(() => {
-          if (document.visibilityState === "hidden") return;
-          log("Final web fallback:", targetUrl);
-          window.location = targetUrl;
-        }, 2000);
-        return;
-      }
-    }
-
-    window.addEventListener('load', openNow);
-    document.getElementById('retryBtn').addEventListener('click', openNow);
+      window.addEventListener('load', openNow);
+      document.getElementById('retryBtn').addEventListener('click', openNow);
+    })();
   </script>
 </body>
 </html>
