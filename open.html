@@ -6,14 +6,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Redirecting...</title>
 
-  <!-- iOS Smart App Banner support for Safari (optional) -->
-  <!-- Flipkart -->
-  <meta name="apple-itunes-app" content="app-id=742044692, app-argument=https://www.flipkart.com/">
-  <!-- Amazon -->
-  <meta name="apple-itunes-app" content="app-id=297606951, app-argument=https://www.amazon.in/">
-  <!-- Myntra -->
-  <meta name="apple-itunes-app" content="app-id=907394059, app-argument=https://www.myntra.com/">
-
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; padding:16px; text-align:center; }
     #log { margin-top:12px; color:#444; white-space:pre-wrap; font-size:14px; }
@@ -26,14 +18,12 @@
   <h3>Opening the app…</h3>
   <div id="log"></div>
   <button id="retryBtn" style="display:none">Try Again</button>
-  
+  <p class="pb"><a href="https://linktw.in/?reff=poweredby">POWERED BY LINKTW.IN</a></p>
 
   <script>
-    /* =================== CONFIG (edit defaults if you want) =================== */
-    // Default if no ?u= present
-    var DEFAULT_URL = "https://www.flipkart.com/";
-    // Known apps metadata (extendable)
-    var APPS = {
+    /* =================== CONFIG =================== */
+    const DEFAULT_URL = "https://www.flipkart.com/";
+    const APPS = {
       flipkart: {
         test: /(^|\.)flipkart\.com$/i,
         schemePrefix: "flipkart://",
@@ -53,10 +43,9 @@
         iosStoreUrl: "https://apps.apple.com/in/app/myntra-fashion-shopping-app/id907394059"
       }
     };
-    /* ======================================================================== */
+    /* ============================================= */
 
-    // ---------- utilities ----------
-    function log(){ const el = document.getElementById('log'); el.textContent += Array.from(arguments).join(' ') + "\n"; }
+    function log(...args){ document.getElementById('log').textContent += args.join(' ') + "\n"; }
     function ua(){ return navigator.userAgent || navigator.vendor || window.opera || ""; }
     function isAndroid(){ return /Android/i.test(ua()); }
     function isIOS(){ return /iPad|iPhone|iPod/i.test(ua()) && !window.MSStream; }
@@ -67,7 +56,19 @@
       const sp = new URLSearchParams(location.search);
       return sp.get(name);
     }
-    function coerceHttps(u){ return /^https?:\/\//i.test(u) ? u : "https://" + u; }
+
+    // ✅ auto-encode a URL
+    function autoEncodeUrl(u){
+      try {
+        // First decode if already encoded
+        let decoded = decodeURIComponent(u);
+        return encodeURI(decoded);
+      } catch {
+        // fallback: just encode directly
+        return encodeURI(u);
+      }
+    }
+
     function cleanUrl(raw){
       if (!raw) return "";
       raw = raw.trim();
@@ -77,15 +78,20 @@
           const maybe = decodeURIComponent(raw);
           if (/^(https?:\/\/|[a-z]+:\/\/)/i.test(maybe)) raw = maybe;
         } catch(e){}
-        if (!/^(https?:\/\/|[a-z]+:\/\/)/i.test(raw)) raw = coerceHttps(raw);
+        if (!/^(https?:\/\/|[a-z]+:\/\/)/i.test(raw)) raw = "https://" + raw;
         const parsed = new URL(raw);
         return parsed.toString();
       } catch(e){ return ""; }
     }
+
     function extractTarget(){
-      const fromU = getQueryParam("u") || getQueryParam("url");
-      const cleaned = cleanUrl(fromU);
-      if (cleaned) { log("Target from URL bar:", cleaned); return cleaned; }
+      const raw = getQueryParam("u") || getQueryParam("url");
+      const cleaned = cleanUrl(raw);
+      if (cleaned) { 
+        const encoded = autoEncodeUrl(cleaned);
+        log("Extracted and encoded URL:", encoded); 
+        return encoded; 
+      }
       log("No ?u= provided. Using default:", DEFAULT_URL);
       return DEFAULT_URL;
     }
@@ -102,24 +108,20 @@
 
     function stripProtocol(u){ return u.replace(/^https?:\/\//i, ""); }
 
-    // ---------- main flow ----------
     const targetUrl = extractTarget();
     const appMeta = detectAppMeta(targetUrl);
     const device = isAndroid() ? "android" : (isIOS() ? "ios" : "desktop");
-
-    // Build deep link if we know scheme and the target is http(s)
     let appDeepLink = null;
+
     if (appMeta && /^https?:\/\//i.test(targetUrl)) {
       appDeepLink = appMeta.schemePrefix + stripProtocol(targetUrl);
     } else if (/^[a-z]+:\/\//i.test(targetUrl)) {
-      // If user passed a custom scheme already, just use it as-is
       appDeepLink = targetUrl;
     }
 
     function openNow(){
-      // Instagram iOS blocks auto scheme opens without a gesture; try to bump to Safari
       if (isInstagram() && isIOS()) {
-        log("Instagram iOS detected — trying to open in Safari first.");
+        log("Instagram iOS detected — trying to open in Safari.");
         const a = document.createElement('a');
         a.href = targetUrl; a.target = "_blank"; a.rel = "noopener";
         document.body.appendChild(a); a.click(); a.remove();
@@ -133,7 +135,6 @@
         return;
       }
 
-      // Try app scheme first if available
       let attemptedScheme = false;
       if (appDeepLink) {
         attemptedScheme = true;
@@ -142,34 +143,21 @@
       }
 
       if (device === "android") {
-        // Android intent fallback with correct package (if we know it)
         const pkg = appMeta && appMeta.androidPackage ? `;package=${appMeta.androidPackage}` : "";
         const intent = "intent:" + stripProtocol(targetUrl) +
                        "#Intent;action=android.intent.action.VIEW" +
                        pkg +
                        ";S.browser_fallback_url=" + encodeURIComponent(targetUrl) +
                        ";end";
-        setTimeout(function(){
-          log("Android intent fallback:", intent);
-          window.location = intent;
-        }, attemptedScheme ? 450 : 0);
-
-        // Final web fallback
-        setTimeout(function(){
-          log("Final web fallback:", targetUrl);
-          window.location = targetUrl;
-        }, 1100);
+        setTimeout(() => { log("Android intent fallback:", intent); window.location = intent; }, attemptedScheme ? 450 : 0);
+        setTimeout(() => { log("Final web fallback:", targetUrl); window.location = targetUrl; }, 1100);
         return;
       }
 
       if (device === "ios") {
-        // iOS: Universal Link (top-level nav) already triggered via appDeepLink if using https://
-        // If we used custom scheme or no app open, send to App Store → then web
         const store = appMeta ? appMeta.iosStoreUrl : null;
-
-        // If initial scheme didn't navigate away, fall back
-        setTimeout(function(){
-          if (document.visibilityState === "hidden") return; // user left → likely opened app
+        setTimeout(() => {
+          if (document.visibilityState === "hidden") return;
           if (store) {
             log("iOS App Store fallback:", store);
             window.location = store;
@@ -179,8 +167,7 @@
           }
         }, attemptedScheme ? 1200 : 600);
 
-        // As last resort go web
-        setTimeout(function(){
+        setTimeout(() => {
           if (document.visibilityState === "hidden") return;
           log("Final web fallback:", targetUrl);
           window.location = targetUrl;
@@ -189,7 +176,6 @@
       }
     }
 
-    // Auto-run and expose a retry button
     window.addEventListener('load', openNow);
     document.getElementById('retryBtn').addEventListener('click', openNow);
   </script>
