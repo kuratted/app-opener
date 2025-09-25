@@ -1,141 +1,197 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Open Flipkart App</title>
-<style>
-  body { font-family: system-ui, sans-serif; padding: 18px; }
-  #log { margin-top:12px; color:#333; white-space:pre-wrap; }
-  button { padding: 12px 20px; font-size:16px; margin-top:20px; }
-</style>
+  <meta name="robots" content="noindex">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Redirecting...</title>
 
-<!-- ✅ Native Smart App Banner (optional, iOS Safari will show it) -->
-<meta name="apple-itunes-app"
-      content="app-id=742044692, app-argument=https://www.flipkart.com/">
+  <!-- iOS Smart App Banner support for Safari (optional) -->
+  <!-- Flipkart -->
+  <meta name="apple-itunes-app" content="app-id=742044692, app-argument=https://www.flipkart.com/">
+  <!-- Amazon -->
+  <meta name="apple-itunes-app" content="app-id=297606951, app-argument=https://www.amazon.in/">
+  <!-- Myntra -->
+  <meta name="apple-itunes-app" content="app-id=907394059, app-argument=https://www.myntra.com/">
+
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; padding:16px; text-align:center; }
+    #log { margin-top:12px; color:#444; white-space:pre-wrap; font-size:14px; }
+    .pb { position:fixed; bottom:1em; left:0; right:0; font-size:12px; color:#bbb; }
+    .pb a { color:#d3d3d3; text-decoration:none; }
+    button { padding:12px 18px; font-size:16px; margin-top:18px; }
+  </style>
 </head>
 <body>
-<h3>Open Flipkart Product</h3>
-<div id="log"></div>
-<button id="openBtn">Open in Flipkart</button>
+  <h3>Opening the app…</h3>
+  <div id="log"></div>
+  <button id="retryBtn" style="display:none">Try Again</button>
+  <p class="pb"><a href="https://linktw.in/?reff=poweredby">POWERED BY LINKTW.IN</a></p>
 
-<script>
-/* ------------------ URL extractor from the address bar ------------------ */
-const DEFAULT_FLIPKART_URL =
-  "https://www.flipkart.com/u-s-polo-assn-solid-men-neck-blue-t-shirt/p/itm7543be481a35d";
+  <script>
+    /* =================== CONFIG (edit defaults if you want) =================== */
+    // Default if no ?u= present
+    var DEFAULT_URL = "https://www.flipkart.com/";
+    // Known apps metadata (extendable)
+    var APPS = {
+      flipkart: {
+        test: /(^|\.)flipkart\.com$/i,
+        schemePrefix: "flipkart://",
+        androidPackage: "com.flipkart.android",
+        iosStoreUrl: "https://apps.apple.com/in/app/flipkart-shop-online/id742044692"
+      },
+      amazon: {
+        test: /(^|\.)amazon\.(in|com|ae|de|co\.uk|ca|com\.au|fr|it|es|nl|sg|jp)$/i,
+        schemePrefix: "com.amazon.mobile.shopping.web://",
+        androidPackage: "com.amazon.mShop.android.shopping",
+        iosStoreUrl: "https://apps.apple.com/in/app/amazon-shopping/id297606951"
+      },
+      myntra: {
+        test: /(^|\.)myntra\.com$/i,
+        schemePrefix: "myntra://",
+        androidPackage: "com.myntra.android",
+        iosStoreUrl: "https://apps.apple.com/in/app/myntra-fashion-shopping-app/id907394059"
+      }
+    };
+    /* ======================================================================== */
 
-function log(...args){ 
-  const el = document.getElementById('log');
-  el.textContent += args.join(' ') + "\n";
-  console.log(...args);
-}
+    // ---------- utilities ----------
+    function log(){ const el = document.getElementById('log'); el.textContent += Array.from(arguments).join(' ') + "\n"; }
+    function ua(){ return navigator.userAgent || navigator.vendor || window.opera || ""; }
+    function isAndroid(){ return /Android/i.test(ua()); }
+    function isIOS(){ return /iPad|iPhone|iPod/i.test(ua()) && !window.MSStream; }
+    function isInstagram(){ return /Instagram/i.test(ua()); }
+    function isMobileSafari(){ return /iP(hone|od|ad).+Safari/i.test(ua()) && !/CriOS|FxiOS/i.test(ua()); }
 
-function getQueryParam(name) {
-  const params = new URLSearchParams(window.location.search);
-  return params.get(name);
-}
-
-function coerceHttps(u) {
-  // add https:// if user passed a bare domain
-  if (!/^https?:\/\//i.test(u)) return "https://" + u;
-  return u;
-}
-
-function cleanUrl(u) {
-  try {
-    // Trim, decode once if it looks percent-encoded
-    u = (u || "").trim();
-    if (!u) return "";
-
-    // If url is double-encoded (rare), decode safely once
-    try {
-      const maybe = decodeURIComponent(u);
-      if (/^(https?:\/\/|[a-z]+:\/\/)/i.test(maybe)) u = maybe;
-    } catch(_) {}
-
-    u = coerceHttps(u);
-
-    // Basic validation
-    const parsed = new URL(u);
-    // Optional: you can enforce Flipkart only
-    // if (!/(\.|^)flipkart\.com$/i.test(parsed.hostname)) return "";
-
-    return parsed.toString();
-  } catch (e) {
-    return "";
-  }
-}
-
-function extractTargetUrl() {
-  // Prefer ?u=, fallback to ?url=
-  const raw = getQueryParam("u") || getQueryParam("url");
-  const cleaned = cleanUrl(raw);
-  if (cleaned) {
-    log("Detected target from URL bar:", cleaned);
-    return cleaned;
-  }
-  log("No valid ?u= found. Falling back to default:", DEFAULT_FLIPKART_URL);
-  return DEFAULT_FLIPKART_URL;
-}
-
-/* ------------------ App open logic (unchanged behavior) ------------------ */
-const APP_STORE_URL = "https://apps.apple.com/in/app/flipkart-shop-online/id742044692";
-let FLIPKART_URL = extractTargetUrl();
-
-function isAndroid(){ return /Android/i.test(navigator.userAgent); }
-function isIOS(){ return /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream; }
-function isInstagram(){ return /Instagram/i.test(navigator.userAgent); }
-
-function openFlipkartApp() {
-  if (isInstagram() && isIOS()) {
-    log("Instagram iOS detected — attempting to open in Safari (system browser).");
-    const safariLink = document.createElement('a');
-    safariLink.href = FLIPKART_URL;
-    safariLink.target = "_blank";
-    // Some in-app browsers ignore programmatic clicks; still worth a try:
-    safariLink.rel = "noopener";
-    document.body.appendChild(safariLink);
-    safariLink.click();
-    safariLink.remove();
-    return;
-  }
-
-  if (isAndroid()) {
-    log("Android: opening intent URI");
-    try {
-      const u = new URL(FLIPKART_URL);
-      const hostPath = u.hostname + u.pathname + (u.search||'') + (u.hash||'');
-      const fallback = encodeURIComponent(FLIPKART_URL);
-      const intentUri =
-        `intent://${hostPath}#Intent;scheme=https;package=com.flipkart.android;S.browser_fallback_url=${fallback};end`;
-      window.location.href = intentUri;
-      return;
-    } catch(e) {
-      log("Invalid URL for intent, opening web:", FLIPKART_URL);
-      window.location.href = FLIPKART_URL;
-      return;
+    function getQueryParam(name){
+      const sp = new URLSearchParams(location.search);
+      return sp.get(name);
     }
-  }
+    function coerceHttps(u){ return /^https?:\/\//i.test(u) ? u : "https://" + u; }
+    function cleanUrl(raw){
+      if (!raw) return "";
+      raw = raw.trim();
+      try {
+        // decode once if percent-encoded
+        try {
+          const maybe = decodeURIComponent(raw);
+          if (/^(https?:\/\/|[a-z]+:\/\/)/i.test(maybe)) raw = maybe;
+        } catch(e){}
+        if (!/^(https?:\/\/|[a-z]+:\/\/)/i.test(raw)) raw = coerceHttps(raw);
+        const parsed = new URL(raw);
+        return parsed.toString();
+      } catch(e){ return ""; }
+    }
+    function extractTarget(){
+      const fromU = getQueryParam("u") || getQueryParam("url");
+      const cleaned = cleanUrl(fromU);
+      if (cleaned) { log("Target from URL bar:", cleaned); return cleaned; }
+      log("No ?u= provided. Using default:", DEFAULT_URL);
+      return DEFAULT_URL;
+    }
 
-  if (isIOS()) {
-    log("iOS: trying Flipkart Universal Link");
-    // try opening the app
-    window.location = FLIPKART_URL;
-    // fallback to App Store if not installed
-    setTimeout(() => {
-      if (document.visibilityState === "hidden") return; // user left page → likely opened app
-      log("Fallback to App Store");
-      window.location = APP_STORE_URL;
-    }, 1500);
-    return;
-  }
+    function detectAppMeta(target){
+      try {
+        const host = new URL(target).hostname.toLowerCase();
+        for (const key in APPS){
+          if (APPS[key].test.test(host)) return APPS[key];
+        }
+      } catch(e){}
+      return null;
+    }
 
-  log("Desktop/unknown platform — opening web URL");
-  window.location.href = FLIPKART_URL;
-}
+    function stripProtocol(u){ return u.replace(/^https?:\/\//i, ""); }
 
-document.getElementById('openBtn').addEventListener('click', openFlipkartApp);
-window.onload = openFlipkartApp;
-</script>
+    // ---------- main flow ----------
+    const targetUrl = extractTarget();
+    const appMeta = detectAppMeta(targetUrl);
+    const device = isAndroid() ? "android" : (isIOS() ? "ios" : "desktop");
+
+    // Build deep link if we know scheme and the target is http(s)
+    let appDeepLink = null;
+    if (appMeta && /^https?:\/\//i.test(targetUrl)) {
+      appDeepLink = appMeta.schemePrefix + stripProtocol(targetUrl);
+    } else if (/^[a-z]+:\/\//i.test(targetUrl)) {
+      // If user passed a custom scheme already, just use it as-is
+      appDeepLink = targetUrl;
+    }
+
+    function openNow(){
+      // Instagram iOS blocks auto scheme opens without a gesture; try to bump to Safari
+      if (isInstagram() && isIOS()) {
+        log("Instagram iOS detected — trying to open in Safari first.");
+        const a = document.createElement('a');
+        a.href = targetUrl; a.target = "_blank"; a.rel = "noopener";
+        document.body.appendChild(a); a.click(); a.remove();
+        document.getElementById("retryBtn").style.display = "inline-block";
+        return;
+      }
+
+      if (device === "desktop") {
+        log("Desktop detected — opening web URL.");
+        location.replace(targetUrl);
+        return;
+      }
+
+      // Try app scheme first if available
+      let attemptedScheme = false;
+      if (appDeepLink) {
+        attemptedScheme = true;
+        log("Trying app deep link:", appDeepLink);
+        try { window.location = appDeepLink; } catch(e){}
+      }
+
+      if (device === "android") {
+        // Android intent fallback with correct package (if we know it)
+        const pkg = appMeta && appMeta.androidPackage ? `;package=${appMeta.androidPackage}` : "";
+        const intent = "intent:" + stripProtocol(targetUrl) +
+                       "#Intent;action=android.intent.action.VIEW" +
+                       pkg +
+                       ";S.browser_fallback_url=" + encodeURIComponent(targetUrl) +
+                       ";end";
+        setTimeout(function(){
+          log("Android intent fallback:", intent);
+          window.location = intent;
+        }, attemptedScheme ? 450 : 0);
+
+        // Final web fallback
+        setTimeout(function(){
+          log("Final web fallback:", targetUrl);
+          window.location = targetUrl;
+        }, 1100);
+        return;
+      }
+
+      if (device === "ios") {
+        // iOS: Universal Link (top-level nav) already triggered via appDeepLink if using https://
+        // If we used custom scheme or no app open, send to App Store → then web
+        const store = appMeta ? appMeta.iosStoreUrl : null;
+
+        // If initial scheme didn't navigate away, fall back
+        setTimeout(function(){
+          if (document.visibilityState === "hidden") return; // user left → likely opened app
+          if (store) {
+            log("iOS App Store fallback:", store);
+            window.location = store;
+          } else {
+            log("iOS web fallback:", targetUrl);
+            window.location = targetUrl;
+          }
+        }, attemptedScheme ? 1200 : 600);
+
+        // As last resort go web
+        setTimeout(function(){
+          if (document.visibilityState === "hidden") return;
+          log("Final web fallback:", targetUrl);
+          window.location = targetUrl;
+        }, 2000);
+        return;
+      }
+    }
+
+    // Auto-run and expose a retry button
+    window.addEventListener('load', openNow);
+    document.getElementById('retryBtn').addEventListener('click', openNow);
+  </script>
 </body>
 </html>
