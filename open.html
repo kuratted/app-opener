@@ -1,0 +1,141 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Open Flipkart App</title>
+<style>
+  body { font-family: system-ui, sans-serif; padding: 18px; }
+  #log { margin-top:12px; color:#333; white-space:pre-wrap; }
+  button { padding: 12px 20px; font-size:16px; margin-top:20px; }
+</style>
+
+<!-- ✅ Native Smart App Banner (optional, iOS Safari will show it) -->
+<meta name="apple-itunes-app"
+      content="app-id=742044692, app-argument=https://www.flipkart.com/">
+</head>
+<body>
+<h3>Open Flipkart Product</h3>
+<div id="log"></div>
+<button id="openBtn">Open in Flipkart</button>
+
+<script>
+/* ------------------ URL extractor from the address bar ------------------ */
+const DEFAULT_FLIPKART_URL =
+  "https://www.flipkart.com/u-s-polo-assn-solid-men-neck-blue-t-shirt/p/itm7543be481a35d";
+
+function log(...args){ 
+  const el = document.getElementById('log');
+  el.textContent += args.join(' ') + "\n";
+  console.log(...args);
+}
+
+function getQueryParam(name) {
+  const params = new URLSearchParams(window.location.search);
+  return params.get(name);
+}
+
+function coerceHttps(u) {
+  // add https:// if user passed a bare domain
+  if (!/^https?:\/\//i.test(u)) return "https://" + u;
+  return u;
+}
+
+function cleanUrl(u) {
+  try {
+    // Trim, decode once if it looks percent-encoded
+    u = (u || "").trim();
+    if (!u) return "";
+
+    // If url is double-encoded (rare), decode safely once
+    try {
+      const maybe = decodeURIComponent(u);
+      if (/^(https?:\/\/|[a-z]+:\/\/)/i.test(maybe)) u = maybe;
+    } catch(_) {}
+
+    u = coerceHttps(u);
+
+    // Basic validation
+    const parsed = new URL(u);
+    // Optional: you can enforce Flipkart only
+    // if (!/(\.|^)flipkart\.com$/i.test(parsed.hostname)) return "";
+
+    return parsed.toString();
+  } catch (e) {
+    return "";
+  }
+}
+
+function extractTargetUrl() {
+  // Prefer ?u=, fallback to ?url=
+  const raw = getQueryParam("u") || getQueryParam("url");
+  const cleaned = cleanUrl(raw);
+  if (cleaned) {
+    log("Detected target from URL bar:", cleaned);
+    return cleaned;
+  }
+  log("No valid ?u= found. Falling back to default:", DEFAULT_FLIPKART_URL);
+  return DEFAULT_FLIPKART_URL;
+}
+
+/* ------------------ App open logic (unchanged behavior) ------------------ */
+const APP_STORE_URL = "https://apps.apple.com/in/app/flipkart-shop-online/id742044692";
+let FLIPKART_URL = extractTargetUrl();
+
+function isAndroid(){ return /Android/i.test(navigator.userAgent); }
+function isIOS(){ return /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream; }
+function isInstagram(){ return /Instagram/i.test(navigator.userAgent); }
+
+function openFlipkartApp() {
+  if (isInstagram() && isIOS()) {
+    log("Instagram iOS detected — attempting to open in Safari (system browser).");
+    const safariLink = document.createElement('a');
+    safariLink.href = FLIPKART_URL;
+    safariLink.target = "_blank";
+    // Some in-app browsers ignore programmatic clicks; still worth a try:
+    safariLink.rel = "noopener";
+    document.body.appendChild(safariLink);
+    safariLink.click();
+    safariLink.remove();
+    return;
+  }
+
+  if (isAndroid()) {
+    log("Android: opening intent URI");
+    try {
+      const u = new URL(FLIPKART_URL);
+      const hostPath = u.hostname + u.pathname + (u.search||'') + (u.hash||'');
+      const fallback = encodeURIComponent(FLIPKART_URL);
+      const intentUri =
+        `intent://${hostPath}#Intent;scheme=https;package=com.flipkart.android;S.browser_fallback_url=${fallback};end`;
+      window.location.href = intentUri;
+      return;
+    } catch(e) {
+      log("Invalid URL for intent, opening web:", FLIPKART_URL);
+      window.location.href = FLIPKART_URL;
+      return;
+    }
+  }
+
+  if (isIOS()) {
+    log("iOS: trying Flipkart Universal Link");
+    // try opening the app
+    window.location = FLIPKART_URL;
+    // fallback to App Store if not installed
+    setTimeout(() => {
+      if (document.visibilityState === "hidden") return; // user left page → likely opened app
+      log("Fallback to App Store");
+      window.location = APP_STORE_URL;
+    }, 1500);
+    return;
+  }
+
+  log("Desktop/unknown platform — opening web URL");
+  window.location.href = FLIPKART_URL;
+}
+
+document.getElementById('openBtn').addEventListener('click', openFlipkartApp);
+window.onload = openFlipkartApp;
+</script>
+</body>
+</html>
