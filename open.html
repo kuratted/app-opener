@@ -11,13 +11,11 @@
     #log { margin-top:12px; color:#444; white-space:pre-wrap; font-size:14px; }
     .pb { position:fixed; bottom:1em; left:0; right:0; font-size:12px; color:#bbb; }
     .pb a { color:#d3d3d3; text-decoration:none; }
-    button { padding:12px 18px; font-size:16px; margin-top:18px; }
   </style>
 </head>
 <body>
   <h3>Opening the app…</h3>
   <div id="log"></div>
-  <button id="retryBtn" style="display:none">Try Again</button>
   <p class="pb"><a href="https://linktw.in/?reff=poweredby">POWERED BY LINKTW.IN</a></p>
 
   <script>
@@ -57,14 +55,11 @@
       return sp.get(name);
     }
 
-    // ✅ auto-encode a URL
     function autoEncodeUrl(u){
       try {
-        // First decode if already encoded
         let decoded = decodeURIComponent(u);
         return encodeURI(decoded);
       } catch {
-        // fallback: just encode directly
         return encodeURI(u);
       }
     }
@@ -73,7 +68,6 @@
       if (!raw) return "";
       raw = raw.trim();
       try {
-        // decode once if percent-encoded
         try {
           const maybe = decodeURIComponent(raw);
           if (/^(https?:\/\/|[a-z]+:\/\/)/i.test(maybe)) raw = maybe;
@@ -119,13 +113,12 @@
       appDeepLink = targetUrl;
     }
 
-    function openNow(){
+    function redirectNow(){
       if (isInstagram() && isIOS()) {
         log("Instagram iOS detected — trying to open in Safari.");
         const a = document.createElement('a');
         a.href = targetUrl; a.target = "_blank"; a.rel = "noopener";
         document.body.appendChild(a); a.click(); a.remove();
-        document.getElementById("retryBtn").style.display = "inline-block";
         return;
       }
 
@@ -176,8 +169,8 @@
       }
     }
 
-    window.addEventListener('load', openNow);
-    document.getElementById('retryBtn').addEventListener('click', openNow);
+    // 🚀 Auto redirect as soon as page loads
+    window.addEventListener('load', redirectNow);
   </script>
 </body>
 </html>
