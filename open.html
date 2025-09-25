@@ -1,1 +1,242 @@
-<!DOCTYPE html> <html lang="en"> <head> <meta name="robots" content="noindex"> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Redirecting...</title> <script> // ----------------------------- // CONFIG // ----------------------------- const AMAZON_AFF_TAG = "shalinisin03e-21"; // change if needed const ENFORCE_TAG = true; // set false if you DON'T want to inject tag when missing // ----------------------------- // URL EXTRACTION FROM URL BAR // ----------------------------- function getSearchParams(url) { try { return new URL(url).searchParams; } catch { return new URLSearchParams(); } } function safeDecode(str) { try { return decodeURIComponent(str); } catch { return str; } } function tryBase64Decode(str) { try { // rudimentary base64 check if (!/^[A-Za-z0-9+/=]+$/.test(str) || str.length % 4 !== 0) return str; const decoded = atob(str); // if the result looks like a URL, keep it if (/^https?:\/\//i.test(decoded) || /^www\./i.test(decoded)) return decoded; return str; } catch { return str; } } function extractFromPrettyPath() { // e.g. https://your.domain/go/<encoded or url> const path = location.pathname || ""; const parts = path.split("/").filter(Boolean); // common patterns: /go/<payload>, /r/<payload> if (parts.length >= 2 && /^(go|r|redirect)$/i.test(parts[0])) { return parts.slice(1).join("/"); // in case payload has slashes } return null; } function collectCandidateStrings() { const href = location.href; const sp = getSearchParams(href); const hash = (location.hash || "").replace(/^#/, ""); const hashParams = new URLSearchParams(hash); const keys = ["url","u","link","l","redirect","r","target","to","q"]; // common keys const candidates = []; // query params keys.forEach(k => { if (sp.get(k)) candidates.push(sp.get(k)); }); // hash params (#url=...) keys.forEach(k => { if (hashParams.get(k)) candidates.push(hashParams.get(k)); }); // sometimes the full href contains an embedded url parameter value // e.g. ?url=https%3A%2F%2Fwww.amazon.in%2F... // we already got those as params, but additionally scan for obvious http(s) substrings const urlMatch = href.match(/https?:\/\/[^\s"'<>]+/i); if (urlMatch) candidates.push(urlMatch[0]); // pretty path const pretty = extractFromPrettyPath(); if (pretty) candidates.push(pretty); // de-dup while preserving order return [...new Set(candidates.filter(Boolean))]; } function normalizeToUrl(raw) { if (!raw) return null; // strip quotes/spaces raw = raw.trim().replace(/^['"]|['"]$/g, ""); // Decode percent / then try base64 if needed let decoded = safeDecode(raw); decoded = tryBase64Decode(decoded); decoded = safeDecode(decoded); // sometimes b64 result is still encoded // Some wrappers like "www.amazon.in/..." without scheme if (!/^https?:\/\//i.test(decoded)) { if (/^www\./i.test(decoded)) decoded = "https://" + decoded; } try { const u = new URL(decoded); return u.href; } catch { return null; } } function pickMainUrl() { const candidates = collectCandidateStrings(); for (const c of candidates) { const u = normalizeToUrl(c); if (!u) continue; // Prefer an Amazon URL if present; else first valid URL if (/\/\/([a-z0-9-]+\.)*amazon\./i.test(u)) return u; } // Fallback: first valid for (const c of candidates) { const u = normalizeToUrl(c); if (u) return u; } return null; } // ----------------------------- // AMAZON NORMALIZATION + TAG // ----------------------------- function ensureAmazonAffiliateTag(urlStr) { try { const u = new URL(urlStr); const isAmazon = /(^|\.)amazon\./i.test(u.hostname); if (!isAmazon) return urlStr; // If already has a "tag" param, leave as-is if (u.searchParams.has("tag")) return u.toString(); if (ENFORCE_TAG && AMAZON_AFF_TAG) { u.searchParams.set("tag", AMAZON_AFF_TAG); } return u.toString(); } catch { return urlStr; } } // ----------------------------- // DEVICE / BROWSER HELPERS // ----------------------------- function detectDevice() { const ua = navigator.userAgent || navigator.vendor || window.opera; if (/android/i.test(ua)) return "android"; if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) return "ios"; return "desktop"; } function isSafari() { return /safari/i.test(navigator.userAgent) && !/CriOS|FxiOS/i.test(navigator.userAgent); } function isMobileSafari() { const ua = navigator.userAgent; return /iPad|iPhone|iPod/.test(ua) && /Safari/i.test(ua) && !/CriOS|FxiOS/i.test(ua); } function isMobileBrowser() { const ua = navigator.userAgent; return /CriOS|FxiOS|chrome.*mobile|firefox.*mobile|opera.*mobile/i.test(ua) || isMobileSafari(); } function isFbBrowser() { return /FBAN|FBAV/i.test(navigator.userAgent); } function isChromeMob() { return /CriOS/i.test(navigator.userAgent); } // ----------------------------- // REDIRECT // ----------------------------- let dl_found = true; function buildAppLink(mainUrl) { // Amazon app scheme on both iOS & Android return "com.amazon.mobile.shopping.web://" + mainUrl.replace(/^https?:\/\//i, ""); } function redirect() { let mainUrl = pickMainUrl() || "https://www.amazon.in/"; // safe fallback mainUrl = ensureAmazonAffiliateTag(mainUrl); const device = detectDevice(); const isFbMios = /FBCR/i.test(navigator.userAgent) && /iPhone/i.test(navigator.userAgent); let redirectUrl = (device === "desktop") ? mainUrl : buildAppLink(mainUrl); let simpleRedirect = false; if (isFbMios) { // special-case: FB Messenger iOS redirectUrl = mainUrl; simpleRedirect = true; } function performRedirect() { if (device === "desktop") { window.location.replace(mainUrl); return; } function tryOpenApp() { if (dl_found) { window.location = redirectUrl; } if (!simpleRedirect) { // Chrome intent / Chrome iOS scheme fallback if (!isMobileBrowser() && (!isFbBrowser() || (isFbBrowser() && device === 'android')) || !isMobileSafari()) { const chromeUrl = device === 'android' ? "intent:" + mainUrl + "#Intent;action=android.intent.action.VIEW;S.browser_fallback_url=" + encodeURIComponent(mainUrl) + ";end" : "googlechrome://" + mainUrl.replace(/^https?:\/\//i, ""); setTimeout(function(){ window.location = chromeUrl; }, 500); } // Safari explicit fallback (iOS) if ((!isMobileBrowser() && !isChromeMob() && !isSafari() && !isMobileSafari() && device === 'ios') || !isMobileSafari()) { setTimeout(function(){ window.location = "x-safari-" + mainUrl; }, 800); } // Plain web fallback setTimeout(function(){ window.location = mainUrl; }, 1100); } } // visibilitychange guard: if app opened, page becomes hidden — no need to force extra fallbacks let fired = false; const visHandler = () => { if (document.hidden && !fired) { fired = true; // no-op; rely on app opening } }; document.addEventListener("visibilitychange", visHandler, { once: true }); tryOpenApp(); } performRedirect(); } if (document.readyState === "complete") { redirect(); } else { window.addEventListener("load", redirect, { once: true }); } </script> <style> body { text-align:center; font-size:16px; font-family:sans-serif; margin:0; padding:1em; } .pb { position:fixed; bottom:1em; width:100%; font-size:0.8em; } .pb a { color:#d3d3d3; text-decoration:none; } </style> </head> <body> <p class="pb"><a href="https://linktw.in/?reff=poweredby">POWERED BY LINKTW.IN</a></p> </body> </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="robots" content="noindex">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirecting...</title>
+  <script>
+    // -----------------------------
+    // CONFIG
+    // -----------------------------
+    const AMAZON_AFF_TAG = "shalinisin03e-21"; // change if needed
+    const ENFORCE_TAG = true;                  // set false if you DON'T want to inject tag when missing
+
+    // -----------------------------
+    // URL EXTRACTION FROM URL BAR
+    // -----------------------------
+    function getSearchParams(url) {
+      try { return new URL(url).searchParams; } catch { return new URLSearchParams(); }
+    }
+
+    function safeDecode(str) {
+      try { return decodeURIComponent(str); } catch { return str; }
+    }
+
+    function tryBase64Decode(str) {
+      try {
+        // rudimentary base64 check
+        if (!/^[A-Za-z0-9+/=]+$/.test(str) || str.length % 4 !== 0) return str;
+        const decoded = atob(str);
+        // if the result looks like a URL, keep it
+        if (/^https?:\/\//i.test(decoded) || /^www\./i.test(decoded)) return decoded;
+        return str;
+      } catch { return str; }
+    }
+
+    function extractFromPrettyPath() {
+      // e.g. https://your.domain/go/<encoded or url>
+      const path = location.pathname || "";
+      const parts = path.split("/").filter(Boolean);
+      // common patterns: /go/<payload>, /r/<payload>
+      if (parts.length >= 2 && /^(go|r|redirect)$/i.test(parts[0])) {
+        return parts.slice(1).join("/"); // in case payload has slashes
+      }
+      return null;
+    }
+
+    function collectCandidateStrings() {
+      const href = location.href;
+      const sp = getSearchParams(href);
+      const hash = (location.hash || "").replace(/^#/, "");
+      const hashParams = new URLSearchParams(hash);
+
+      const keys = ["url","u","link","l","redirect","r","target","to","q"]; // common keys
+      const candidates = [];
+
+      // query params
+      keys.forEach(k => { if (sp.get(k)) candidates.push(sp.get(k)); });
+      // hash params (#url=...)
+      keys.forEach(k => { if (hashParams.get(k)) candidates.push(hashParams.get(k)); });
+
+      // sometimes the full href contains an embedded url parameter value
+      // e.g. ?url=https%3A%2F%2Fwww.amazon.in%2F...
+      // we already got those as params, but additionally scan for obvious http(s) substrings
+      const urlMatch = href.match(/https?:\/\/[^\s"'<>]+/i);
+      if (urlMatch) candidates.push(urlMatch[0]);
+
+      // pretty path
+      const pretty = extractFromPrettyPath();
+      if (pretty) candidates.push(pretty);
+
+      // de-dup while preserving order
+      return [...new Set(candidates.filter(Boolean))];
+    }
+
+    function normalizeToUrl(raw) {
+      if (!raw) return null;
+
+      // strip quotes/spaces
+      raw = raw.trim().replace(/^['"]|['"]$/g, "");
+
+      // Decode percent / then try base64 if needed
+      let decoded = safeDecode(raw);
+      decoded = tryBase64Decode(decoded);
+      decoded = safeDecode(decoded); // sometimes b64 result is still encoded
+
+      // Some wrappers like "www.amazon.in/..." without scheme
+      if (!/^https?:\/\//i.test(decoded)) {
+        if (/^www\./i.test(decoded)) decoded = "https://" + decoded;
+      }
+
+      try {
+        const u = new URL(decoded);
+        return u.href;
+      } catch {
+        return null;
+      }
+    }
+
+    function pickMainUrl() {
+      const candidates = collectCandidateStrings();
+      for (const c of candidates) {
+        const u = normalizeToUrl(c);
+        if (!u) continue;
+        // Prefer an Amazon URL if present; else first valid URL
+        if (/\/\/([a-z0-9-]+\.)*amazon\./i.test(u)) return u;
+      }
+      // Fallback: first valid
+      for (const c of candidates) {
+        const u = normalizeToUrl(c);
+        if (u) return u;
+      }
+      return null;
+    }
+
+    // -----------------------------
+    // AMAZON NORMALIZATION + TAG
+    // -----------------------------
+    function ensureAmazonAffiliateTag(urlStr) {
+      try {
+        const u = new URL(urlStr);
+        const isAmazon = /(^|\.)amazon\./i.test(u.hostname);
+        if (!isAmazon) return urlStr;
+
+        // If already has a "tag" param, leave as-is
+        if (u.searchParams.has("tag")) return u.toString();
+
+        if (ENFORCE_TAG && AMAZON_AFF_TAG) {
+          u.searchParams.set("tag", AMAZON_AFF_TAG);
+        }
+        return u.toString();
+      } catch {
+        return urlStr;
+      }
+    }
+
+    // -----------------------------
+    // DEVICE / BROWSER HELPERS
+    // -----------------------------
+    function detectDevice() {
+      const ua = navigator.userAgent || navigator.vendor || window.opera;
+      if (/android/i.test(ua)) return "android";
+      if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) return "ios";
+      return "desktop";
+    }
+    function isSafari() { return /safari/i.test(navigator.userAgent) && !/CriOS|FxiOS/i.test(navigator.userAgent); }
+    function isMobileSafari() {
+      const ua = navigator.userAgent;
+      return /iPad|iPhone|iPod/.test(ua) && /Safari/i.test(ua) && !/CriOS|FxiOS/i.test(ua);
+    }
+    function isMobileBrowser() {
+      const ua = navigator.userAgent;
+      return /CriOS|FxiOS|chrome.*mobile|firefox.*mobile|opera.*mobile/i.test(ua) || isMobileSafari();
+    }
+    function isFbBrowser() { return /FBAN|FBAV/i.test(navigator.userAgent); }
+    function isChromeMob() { return /CriOS/i.test(navigator.userAgent); }
+
+    // -----------------------------
+    // REDIRECT
+    // -----------------------------
+    let dl_found = true;
+
+    function buildAppLink(mainUrl) {
+      // Amazon app scheme on both iOS & Android
+      return "com.amazon.mobile.shopping.web://" + mainUrl.replace(/^https?:\/\//i, "");
+    }
+
+    function redirect() {
+      let mainUrl = pickMainUrl() || "https://www.amazon.in/"; // safe fallback
+      mainUrl = ensureAmazonAffiliateTag(mainUrl);
+
+      const device = detectDevice();
+      const isFbMios = /FBCR/i.test(navigator.userAgent) && /iPhone/i.test(navigator.userAgent);
+
+      let redirectUrl = (device === "desktop") ? mainUrl : buildAppLink(mainUrl);
+      let simpleRedirect = false;
+
+      if (isFbMios) { // special-case: FB Messenger iOS
+        redirectUrl = mainUrl;
+        simpleRedirect = true;
+      }
+
+      function performRedirect() {
+        if (device === "desktop") {
+          window.location.replace(mainUrl);
+          return;
+        }
+
+        function tryOpenApp() {
+          if (dl_found) { window.location = redirectUrl; }
+
+          if (!simpleRedirect) {
+            // Chrome intent / Chrome iOS scheme fallback
+            if (!isMobileBrowser() && (!isFbBrowser() || (isFbBrowser() && device === 'android')) || !isMobileSafari()) {
+              const chromeUrl = device === 'android'
+                ? "intent:" + mainUrl + "#Intent;action=android.intent.action.VIEW;S.browser_fallback_url=" + encodeURIComponent(mainUrl) + ";end"
+                : "googlechrome://" + mainUrl.replace(/^https?:\/\//i, "");
+              setTimeout(function(){ window.location = chromeUrl; }, 500);
+            }
+
+            // Safari explicit fallback (iOS)
+            if ((!isMobileBrowser() && !isChromeMob() && !isSafari() && !isMobileSafari() && device === 'ios') || !isMobileSafari()) {
+              setTimeout(function(){ window.location = "x-safari-" + mainUrl; }, 800);
+            }
+
+            // Plain web fallback
+            setTimeout(function(){ window.location = mainUrl; }, 1100);
+          }
+        }
+
+        // visibilitychange guard: if app opened, page becomes hidden — no need to force extra fallbacks
+        let fired = false;
+        const visHandler = () => {
+          if (document.hidden && !fired) {
+            fired = true;
+            // no-op; rely on app opening
+          }
+        };
+        document.addEventListener("visibilitychange", visHandler, { once: true });
+
+        tryOpenApp();
+      }
+
+      performRedirect();
+    }
+
+    if (document.readyState === "complete") {
+      redirect();
+    } else {
+      window.addEventListener("load", redirect, { once: true });
+    }
+  </script>
+  <style>
+    body { text-align:center; font-size:16px; font-family:sans-serif; margin:0; padding:1em; }
+    .pb { position:fixed; bottom:1em; width:100%; font-size:0.8em; }
+    .pb a { color:#d3d3d3; text-decoration:none; }
+  </style>
+</head>
+<body>
+  <p class="pb"><a href="https://linktw.in/?reff=poweredby">POWERED BY LINKTW.IN</a></p>
+</body>
+</html>
