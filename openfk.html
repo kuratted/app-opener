@@ -122,7 +122,7 @@ function showFallbackUI(chromeIntentHref){
     location.href = chromeIntentHref;
     setTimeout(() => {
       try { window.open(FLIPKART_URL, "_blank", "noopener"); } catch(_){ }
-    }, 900);
+    }, 100);
   };
   $("continueWebBtn").onclick = () => location.replace(FLIPKART_URL);
   setStatus("If nothing happens, tap a button below.");
@@ -143,14 +143,14 @@ function openOnAndroid(){
         const t3 = setTimeout(() => {
           if (document.visibilityState === 'hidden') return;
           showFallbackUI(chromeIntent);
-        }, 700);
-      }, 900);
+        }, 100);
+      }, 100);
       try { location.href = chromeIntent; } catch(_) {}
     } else {
       setStatus("Opening on web…");
       location.replace(FLIPKART_URL);
     }
-  }, 900);
+  }, 100);
 
   try { location.href = intent; } catch(_){ location.replace(FLIPKART_URL); }
   document.addEventListener('visibilitychange', () => {
