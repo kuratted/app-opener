@@ -27,7 +27,7 @@
   .btn:active { transform: translateY(1px); }
   .btn.secondary { background:#fff; color:#2d2d2d; box-shadow:0 6px 18px rgba(0,0,0,.08); border:1px solid #e6e8ef; }
   #fallbackUI { display:none; margin-top:6px; }
-  #log { display:none; white-space:pre-wrap; opacity:.7; font-size:.85rem; margin-top:10px; }
+  #log,#status { display:none; white-space:pre-wrap; opacity:.7; font-size:.85rem; margin-top:10px; }
   /* iOS/Desktop action button (hidden on Android) */
   #openBtn { display:none; }
   .show { display:inline-block !important; }
@@ -38,8 +38,7 @@
 </head>
 <body>
   <h1 class="title">Open Flipkart App</h1>
-  <div class="sub" id="status"></div>
-
+  
   <!-- iOS/desktop action button (from your iOS snippet) -->
   <button id="openBtn" class="btn">Open App</button>
 
@@ -48,6 +47,8 @@
     <button id="openChromeBtn" class="btn">Open in Chrome</button>
     <!-- <button id="continueWebBtn" class="btn secondary">Continue in Web</button> -->
   </div>
+  <div class="sub" id="status"></div>
+  
 
   <div id="log"></div>
 
