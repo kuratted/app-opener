@@ -18,12 +18,12 @@
   .title { font-size:1.8rem; font-weight:650; margin-bottom:12px; letter-spacing:-.3px; }
   .sub  { font-size:.95rem; opacity:.75; margin-bottom:20px; }
   .btn {
-    color: #ffffff;
+    	color: #ffffff;
 		background-color: #2d63c8;
 		font-size: 19px;
 		border: 1px solid #2d63c8;
 		padding: 15px 50px;
-    display:inline-block; border:0; border-radius:100px; 
+    display:inline-block; border:0;
     font-weight:650; font-size:1rem; cursor:pointer; margin:8px 8px;
     box-shadow:0 6px 18px rgba(40,116,240,.25);
     transition: transform .15s ease;
@@ -41,14 +41,15 @@
 <meta name="apple-itunes-app" content="app-id=742044692, app-argument=https://www.flipkart.com/">
 </head>
 <body>
-  <h3 class="title"></h3>
+  <h3 class="title">Open Flipkart</h3>
   
   <!-- iOS/desktop action button (from your iOS snippet) -->
-  <button id="openBtn" class="btn">Open Flipkart App</button>
+  <button id="openBtn" class="btn">Go to App</button>
 
   <!-- Android fallback UI (from your Android logic) -->
   <div id="fallbackUI">
-    <button id="openChromeBtn" class="btn">Open in Chrome</button>
+	<h3 class="title">App not found!</h3>
+    <button id="openChromeBtn" class="btn">Go to Chrome</button>
     <!-- <button id="continueWebBtn" class="btn secondary">Continue in Web</button> -->
   </div>
   <div class="sub" id="status"></div>
