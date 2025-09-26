@@ -1,0 +1,169 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Open Flipkart App</title>
+<style>
+  body { font-family: system-ui, sans-serif; padding: 18px; }
+  #log { margin-top:12px; color:#333; white-space:pre-wrap; display:none; }
+  button { padding: 12px 20px; font-size:16px; margin-top:20px; }
+  body {
+    display:flex; flex-direction:column; justify-content:center; align-items:center;
+    height:100vh; background:linear-gradient(135deg,#f7f9fc,#eef1f7);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin:0; padding:0; text-align:center;
+  }
+  .title { font-size:1.8rem; font-weight:600; color:#2d2d2d; margin-bottom:24px; letter-spacing:-0.5px; }
+  .open-btn {
+    background:linear-gradient(90deg,#2874f0,#0056d2); color:#fff; border:none;
+    padding:14px 36px; font-size:1.1rem; font-weight:600; border-radius:50px; cursor:pointer;
+    box-shadow:0 4px 12px rgba(40,116,240,.3); transition:all .2s ease-in-out;
+  }
+  /* Hidden by default; will be shown only for non-Android */
+  .hidden { display:none; }
+</style>
+
+<!-- iOS smart app banner (Safari) -->
+<meta name="apple-itunes-app" content="app-id=742044692, app-argument=https://www.flipkart.com/">
+</head>
+<body>
+  <h3 class="title">Open Flipkart App</h3>
+  <div id="log"></div>
+  <button id="openBtn" class="open-btn hidden">Open in Flipkart</button>
+
+<script>
+/* ------------------ URL extractor from the address bar ------------------ */
+const DEFAULT_FLIPKART_URL = "https://www.lootdealsks.com/";
+
+function log(){ /* noop in prod; uncomment for debug
+  const el = document.getElementById('log');
+  el.style.display = 'block';
+  el.textContent += Array.from(arguments).join(' ') + "\n";
+  console.log.apply(console, arguments); */
+}
+
+function getQueryParam(name) {
+  const params = new URLSearchParams(window.location.search);
+  return params.get(name);
+}
+
+function coerceHttps(u) {
+  if (!/^https?:\/\//i.test(u)) return "https://" + u;
+  return u;
+}
+
+function cleanUrl(u) {
+  try {
+    u = (u || "").trim();
+    if (!u) return "";
+    try {
+      const maybe = decodeURIComponent(u);
+      if (/^(https?:\/\/|[a-z]+:\/\/)/i.test(maybe)) u = maybe;
+    } catch(_) {}
+    u = coerceHttps(u);
+    const parsed = new URL(u);
+    return parsed.toString();
+  } catch (e) {
+    return "";
+  }
+}
+
+function extractTargetUrl() {
+  const raw = getQueryParam("u") || getQueryParam("url");
+  const cleaned = cleanUrl(raw);
+  if (cleaned) { log("Target from query:", cleaned); return cleaned; }
+  log("No ?u= found. Using default:", DEFAULT_FLIPKART_URL);
+  return DEFAULT_FLIPKART_URL;
+}
+
+/* ------------------ Platform detection ------------------ */
+function isAndroid(){ return /Android/i.test(navigator.userAgent); }
+function isIOS(){ return /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream; }
+function isInstagram(){ return /Instagram/i.test(navigator.userAgent); }
+
+/* ------------------ Config ------------------ */
+const APP_STORE_URL = "https://apps.apple.com/in/app/flipkart-shop-online/id742044692";
+let FLIPKART_URL = extractTargetUrl();
+
+/* ------------------ Open logic ------------------ */
+function openOnAndroid() {
+  // Many in-app browsers (e.g., Instagram) block intents. If detected, go straight to web as fallback.
+  if (isInstagram()) {
+    log("Android Instagram web fallback to:", FLIPKART_URL);
+    window.location.replace(FLIPKART_URL);
+    return;
+  }
+
+  try {
+    const u = new URL(FLIPKART_URL);
+    const hostPath = u.hostname + u.pathname + (u.search||'') + (u.hash||'');
+    const fallbackWeb = encodeURIComponent(FLIPKART_URL);
+
+    // Try to open Flipkart app; if not installed, fall back to the SAME URL in the browser (typically Chrome).
+    const intentUri =
+      `intent://${hostPath}` +
+      `#Intent;scheme=https;package=com.flipkart.android;S.browser_fallback_url=${fallbackWeb};end`;
+
+    // Extra safety: if the intent is ignored, force web fallback shortly after.
+    const webFallbackTimer = setTimeout(() => {
+      log("Intent likely ignored; forcing web fallback:", FLIPKART_URL);
+      window.location.replace(FLIPKART_URL);
+    }, 1200);
+
+    window.location.href = intentUri;
+
+    // If the app opens, page is backgrounded and timer becomes irrelevant.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') clearTimeout(webFallbackTimer);
+    });
+  } catch(e) {
+    log("Invalid URL for intent, opening web:", FLIPKART_URL, e);
+    window.location.replace(FLIPKART_URL);
+  }
+}
+
+function openOniOS() {
+  if (isInstagram()) {
+    // Try to pop out to system browser (best-effort)
+    const a = document.createElement('a');
+    a.href = FLIPKART_URL; a.target = "_blank"; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+    return;
+  }
+  // Universal link attempt
+  window.location.href = FLIPKART_URL;
+
+  // Fallback to App Store if app isn't installed
+  setTimeout(() => {
+    if (document.visibilityState === "hidden") return;
+    window.location.href = APP_STORE_URL;
+  }, 1500);
+}
+
+function openFlipkartApp() {
+  if (isAndroid()) return openOnAndroid();
+  if (isIOS()) return openOniOS();
+
+  // Desktop/unknown → just open web
+  window.location.href = FLIPKART_URL;
+}
+
+/* ------------------ Boot ------------------ */
+window.addEventListener('load', () => {
+  const btn = document.getElementById('openBtn');
+
+  if (isAndroid()) {
+    // Hide the button entirely on Android and auto-open.
+    btn.classList.add('hidden');
+    openFlipkartApp();
+  } else {
+    // Show button on iOS/desktop and also auto-try on load for iOS.
+    btn.classList.remove('hidden');
+    btn.addEventListener('click', openFlipkartApp);
+    if (isIOS()) openFlipkartApp();
+  }
+});
+</script>
+</body>
+</html>
