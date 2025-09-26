@@ -188,7 +188,7 @@ window.addEventListener('load', () => {
     // iOS: show button (visible) and also auto-try on load
     openBtn.classList.add('show');
     openBtn.addEventListener('click', openOniOS);
-    setStatus("Trying to open the app…");
+    // setStatus("");
     openOniOS();
   } else {
     // Desktop/unknown: show button that goes to web/app if macOS iOS-like UA not present
