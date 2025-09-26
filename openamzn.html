@@ -6,15 +6,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Opening Amazon App…</title>
   <style>
-    
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; padding:24px; text-align:center; }
-    h3 { margin: 0 0 8px; font-weight: 600; }
-    p { margin: 0 0 20px; opacity: .75; }
-    .actions { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
-    button {
-      appearance: none; border: 0; border-radius: 999px; padding: 12px 18px;
-      font-weight: 600; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+
+    body {
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background: #f9f9f9;
+      text-align: center;
     }
+
+    h3 {
+      font-size: 1.6rem;
+      margin-bottom: 0.5rem;
+      color: #111;
+    }
+
+    p {
+      font-size: 1rem;
+      color: #444;
+      margin-bottom: 1.5rem;
+    }
+
+    .actions button {
+      background: #007BFF;
+      color: #fff;
+      border: none;
+      padding: 14px 28px;
+      font-size: 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    .actions button:hover {
+      background: #0056b3;
+    }
+    
+   
     .primary { background: #ffd814; }
     .primary { background: #e6e6e6; }
     small { display:block; margin-top:14px; opacity:.6; }
