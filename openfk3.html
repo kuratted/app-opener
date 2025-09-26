@@ -32,7 +32,6 @@
   <!-- Shown ONLY if we get stuck in an in-app browser -->
   <div id="fallbackUI">
     <button id="openChromeBtn" class="btn">Open in Chrome</button>
-    <button id="continueWebBtn" class="btn secondary">Continue in Web</button>
   </div>
 
   <div id="log"></div>
@@ -153,7 +152,7 @@ function showFallbackUI(chromeIntentHref){
     setTimeout(() => { try { window.open(FLIPKART_URL, "_blank", "noopener"); } catch(_){ /* ignore */ } }, 400);
   };
   $("continueWebBtn").onclick = () => location.replace(FLIPKART_URL);
-  setStatus("If nothing happens, tap a button below.");
+  setStatus("If link didn't open, tap button below.");
 }
 
 function openOniOS(){
