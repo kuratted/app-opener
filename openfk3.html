@@ -1,0 +1,150 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Open Flipkart App</title>
+<style>
+  :root { --brand:#2874f0; }
+  body {
+    display:flex; flex-direction:column; justify-content:center; align-items:center;
+    height:100vh; background:linear-gradient(135deg,#f7f9fc,#eef1f7);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin:0; padding:24px; text-align:center; color:#2d2d2d;
+  }
+  .title { font-size:1.6rem; font-weight:650; margin-bottom:12px; letter-spacing:-.3px; }
+  .sub  { font-size:.95rem; opacity:.7; margin-bottom:20px; }
+  .btn {
+    display:inline-block; border:0; border-radius:999px; padding:14px 22px;
+    font-weight:650; font-size:1rem; cursor:pointer; margin:6px 6px;
+    box-shadow:0 6px 18px rgba(40,116,240,.25); background:linear-gradient(90deg,var(--brand),#0056d2); color:#fff;
+  }
+  .btn.secondary { background:#fff; color:#2d2d2d; box-shadow:0 6px 18px rgba(0,0,0,.08); border:1px solid #e6e8ef; }
+  #fallbackUI { display:none; }
+  #log { display:none; white-space:pre-wrap; opacity:.7; font-size:.85rem; margin-top:10px; }
+</style>
+<meta name="apple-itunes-app" content="app-id=742044692, app-argument=https://www.flipkart.com/">
+</head>
+<body>
+  <h1 class="title">Opening Flipkart…</h1>
+  <div class="sub" id="status">Just a sec.</div>
+
+  <div id="fallbackUI">
+    <button id="openChromeBtn" class="btn">Open in Chrome</button>
+    <button id="continueWebBtn" class="btn secondary">Continue in Web</button>
+  </div>
+
+  <div id="log"></div>
+
+<script>
+const DEFAULT_FLIPKART_URL = "https://www.lootdealsks.com/";
+const APP_STORE_URL = "https://apps.apple.com/in/app/flipkart-shop-online/id742044692";
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.flipkart.android";
+
+const $ = (id)=>document.getElementById(id);
+function setStatus(t){ $("status").textContent = t; }
+
+function getQueryParam(name){ return new URLSearchParams(location.search).get(name); }
+function coerceHttps(u){ return /^https?:\/\//i.test(u) ? u : ("https://" + u); }
+function cleanUrl(u){
+  try {
+    u = (u||"").trim(); if(!u) return "";
+    try { const maybe = decodeURIComponent(u); if (/^(https?:\/\/|[a-z]+:\/\/)/i.test(maybe)) u = maybe; } catch(_){}
+    u = coerceHttps(u);
+    const parsed = new URL(u);
+    return parsed.toString();
+  } catch { return ""; }
+}
+function extractTargetUrl(){
+  const raw = getQueryParam("u") || getQueryParam("url");
+  const cleaned = cleanUrl(raw);
+  return cleaned || DEFAULT_FLIPKART_URL;
+}
+
+function isAndroid(){ return /Android/i.test(navigator.userAgent); }
+function isIOS(){ return /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream; }
+function isInAppBrowser(){
+  const ua = navigator.userAgent;
+  return /(Instagram|FBAN|FBAV|FB_IAB|FBAN|FBMD|FBSS|FBOP|FBID|Line|Snapchat|Twitter|WeChat|TikTok|MiuiBrowser|HeyTapBrowser|OPR\/|VivoBrowser|HUAWEI|HONOR|SamsungBrowser)/i.test(ua);
+}
+
+function toHostPath(u){
+  const x = new URL(u);
+  return x.hostname + x.pathname + (x.search||"") + (x.hash||"");
+}
+function flipkartAppIntent(u){
+  const hostPath = toHostPath(u);
+  const storeFallback = encodeURIComponent(PLAY_STORE_URL);
+  return `intent://${hostPath}#Intent;scheme=https;package=com.flipkart.android;S.browser_fallback_url=${storeFallback};end`;
+}
+function chromeIntentForUrl(u){
+  const hostPath = toHostPath(u);
+  return `intent://${hostPath}#Intent;scheme=https;package=com.android.chrome;end`;
+}
+
+const FLIPKART_URL = extractTargetUrl();
+
+/* ----------- ANDROID FLOW ----------- */
+function openOnAndroid(){
+  setStatus("Checking Flipkart app…");
+  const intent = flipkartAppIntent(FLIPKART_URL);
+
+  const t1 = setTimeout(() => {
+    if (document.visibilityState === 'hidden') return;
+    if (isInAppBrowser()) {
+      setStatus("Opening in Chrome…");
+      const chromeIntent = chromeIntentForUrl(FLIPKART_URL);
+      const t2 = setTimeout(() => {
+        if (document.visibilityState === 'hidden') return;
+        try { window.open(FLIPKART_URL, "_blank", "noopener"); } catch(_){}
+        const t3 = setTimeout(() => {
+          if (document.visibilityState === 'hidden') return;
+          showFallbackUI(chromeIntent);
+        }, 700);
+      }, 900);
+      try { location.href = chromeIntent; } catch(_) {}
+    } else {
+      setStatus("Opening on web…");
+      location.replace(FLIPKART_URL);
+    }
+  }, 900);
+
+  try { location.href = intent; } catch(_){ location.replace(FLIPKART_URL); }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') clearTimeout(t1);
+  });
+}
+
+function showFallbackUI(chromeIntentHref){
+  const ui = $("fallbackUI");
+  ui.style.display = "block";
+  $("openChromeBtn").onclick = () => {
+    location.href = chromeIntentHref;
+    setTimeout(() => { try { window.open(FLIPKART_URL, "_blank", "noopener"); } catch(_){ } }, 400);
+  };
+  $("continueWebBtn").onclick = () => location.replace(FLIPKART_URL);
+  setStatus("If nothing happens, tap a button below.");
+}
+
+/* ----------- iOS FLOW (REVERTED TO ORIGINAL) ----------- */
+function openOniOS(){
+  window.location = FLIPKART_URL;
+  setTimeout(() => {
+    if (document.visibilityState === "hidden") return;
+    window.location = APP_STORE_URL;
+  }, 1500);
+}
+
+/* ----------- INIT ----------- */
+window.addEventListener('load', () => {
+  if (isAndroid()) {
+    openOnAndroid();
+  } else if (isIOS()) {
+    openOniOS();
+  } else {
+    location.replace(FLIPKART_URL);
+  }
+});
+</script>
+</body>
+</html>
