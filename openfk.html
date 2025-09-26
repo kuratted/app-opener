@@ -122,7 +122,7 @@ function showFallbackUI(chromeIntentHref){
     location.href = chromeIntentHref;
     setTimeout(() => {
       try { window.open(FLIPKART_URL, "_blank", "noopener"); } catch(_){ }
-    }, 100);
+    }, 2000);
   };
   $("continueWebBtn").onclick = () => location.replace(FLIPKART_URL);
   setStatus("If nothing happens, tap a button below.");
@@ -144,7 +144,7 @@ function openOnAndroid(){
           if (document.visibilityState === 'hidden') return;
           showFallbackUI(chromeIntent);
         }, 100);
-      }, 100);
+      }, 150);
       try { location.href = chromeIntent; } catch(_) {}
     } else {
       setStatus("Opening on web…");
