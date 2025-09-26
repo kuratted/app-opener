@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Opening Amazon App…</title>
   <style>
-    :root { color-scheme: light dark; }
+    
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; padding:24px; text-align:center; }
     h3 { margin: 0 0 8px; font-weight: 600; }
     p { margin: 0 0 20px; opacity: .75; }
@@ -16,7 +16,7 @@
       font-weight: 600; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.2);
     }
     .primary { background: #ffd814; }
-    .secondary { background: #e6e6e6; }
+    .primary { background: #e6e6e6; }
     small { display:block; margin-top:14px; opacity:.6; }
   </style>
   <script>
@@ -226,10 +226,7 @@
   <p>If it doesn’t open, use the button below.</p>
 
   <div class="actions">
-    <button class="primary" onclick="openAmazonApp()">Open Amazon App</button>
-    <button class="secondary" onclick="openChromeOnAndroid()">Open in Chrome (Android)</button>
+    <button class="secondary" onclick="openChromeOnAndroid()">Open in Chrome</button>
   </div>
-
-  <small>This page won’t auto-redirect after a delay.</small>
 </body>
 </html>
