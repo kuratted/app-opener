@@ -29,7 +29,6 @@
   <h1 class="title">Opening Flipkart…</h1>
   <div class="sub" id="status">Just a sec.</div>
 
-  <!-- Shown ONLY if we get stuck in an in-app browser -->
   <div id="fallbackUI">
     <button id="openChromeBtn" class="btn">Open in Chrome</button>
   </div>
@@ -37,18 +36,12 @@
   <div id="log"></div>
 
 <script>
-/** ========= Utilities ========= **/
 const DEFAULT_FLIPKART_URL = "https://www.lootdealsks.com/";
 const APP_STORE_URL = "https://apps.apple.com/in/app/flipkart-shop-online/id742044692";
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.flipkart.android";
 
 const $ = (id)=>document.getElementById(id);
 function setStatus(t){ $("status").textContent = t; }
-function log(){ /* enable for debug:
-  const el = $("log"); el.style.display='block';
-  el.textContent += Array.from(arguments).join(' ') + "\n";
-  console.log.apply(console, arguments);
-  */ }
 
 function getQueryParam(name){ return new URLSearchParams(location.search).get(name); }
 function coerceHttps(u){ return /^https?:\/\//i.test(u) ? u : ("https://" + u); }
@@ -69,76 +62,55 @@ function extractTargetUrl(){
 
 function isAndroid(){ return /Android/i.test(navigator.userAgent); }
 function isIOS(){ return /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream; }
-/* Common in-app browsers */
 function isInAppBrowser(){
   const ua = navigator.userAgent;
   return /(Instagram|FBAN|FBAV|FB_IAB|FBAN|FBMD|FBSS|FBOP|FBID|Line|Snapchat|Twitter|WeChat|TikTok|MiuiBrowser|HeyTapBrowser|OPR\/|VivoBrowser|HUAWEI|HONOR|SamsungBrowser)/i.test(ua);
 }
 
-/** Build intents **/
 function toHostPath(u){
   const x = new URL(u);
   return x.hostname + x.pathname + (x.search||"") + (x.hash||"");
 }
 function flipkartAppIntent(u){
-  // Tries Flipkart app; if blocked/not installed, many webviews ignore browser_fallback_url.
   const hostPath = toHostPath(u);
   const storeFallback = encodeURIComponent(PLAY_STORE_URL);
   return `intent://${hostPath}#Intent;scheme=https;package=com.flipkart.android;S.browser_fallback_url=${storeFallback};end`;
 }
 function chromeIntentForUrl(u){
   const hostPath = toHostPath(u);
-  // Ask Android to open this https URL specifically with Chrome:
   return `intent://${hostPath}#Intent;scheme=https;package=com.android.chrome;end`;
 }
 
-/** ========= Flows ========= **/
 const FLIPKART_URL = extractTargetUrl();
 
+/* ----------- ANDROID FLOW ----------- */
 function openOnAndroid(){
-  // 1) Try Flipkart App via intent
   setStatus("Checking Flipkart app…");
   const intent = flipkartAppIntent(FLIPKART_URL);
-  let bailout = false;
 
-  // If we stay visible after N ms, assume blocked/not installed.
   const t1 = setTimeout(() => {
-    if (document.visibilityState === 'hidden') return; // app opened
-    // 2) If in an in-app browser, try to break out to Chrome via intent
+    if (document.visibilityState === 'hidden') return;
     if (isInAppBrowser()) {
       setStatus("Opening in Chrome…");
       const chromeIntent = chromeIntentForUrl(FLIPKART_URL);
       const t2 = setTimeout(() => {
-        if (document.visibilityState === 'hidden') return; // Chrome grabbed it
-        // 3) Try window.open as another escape hatch
-        setStatus("Almost there…");
+        if (document.visibilityState === 'hidden') return;
         try { window.open(FLIPKART_URL, "_blank", "noopener"); } catch(_){}
         const t3 = setTimeout(() => {
           if (document.visibilityState === 'hidden') return;
-          // 4) Final fallback: show explicit buttons (tap often works)
           showFallbackUI(chromeIntent);
         }, 700);
       }, 900);
-      try { location.href = chromeIntent; } catch(_) { /* ignore */ }
+      try { location.href = chromeIntent; } catch(_) {}
     } else {
-      // Not an in-app browser → just open web as fallback
       setStatus("Opening on web…");
       location.replace(FLIPKART_URL);
     }
   }, 900);
 
-  // Kick off the initial app attempt
-  try { location.href = intent; } catch(_){ bailout = true; }
-  if (bailout){
-    // If even setting location failed, jump to web
-    location.replace(FLIPKART_URL);
-  }
-
-  // If user leaves page (app opened), cancel timers
+  try { location.href = intent; } catch(_){ location.replace(FLIPKART_URL); }
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-      clearTimeout(t1);
-    }
+    if (document.visibilityState === 'hidden') clearTimeout(t1);
   });
 }
 
@@ -146,42 +118,29 @@ function showFallbackUI(chromeIntentHref){
   const ui = $("fallbackUI");
   ui.style.display = "block";
   $("openChromeBtn").onclick = () => {
-    // Try Chrome intent again on user gesture (taps often bypass the block)
     location.href = chromeIntentHref;
-    // Also attempt a regular _blank open as backup
-    setTimeout(() => { try { window.open(FLIPKART_URL, "_blank", "noopener"); } catch(_){ /* ignore */ } }, 400);
+    setTimeout(() => { try { window.open(FLIPKART_URL, "_blank", "noopener"); } catch(_){ } }, 400);
   };
   $("continueWebBtn").onclick = () => location.replace(FLIPKART_URL);
-  setStatus("If link didn't open, tap button below.");
+  setStatus("If nothing happens, tap button below.");
 }
 
+/* ----------- iOS FLOW (REVERTED TO ORIGINAL) ----------- */
 function openOniOS(){
-  // In IG/FB iOS webviews you can’t force Safari reliably; best effort:
-  if (isInAppBrowser()) {
-    setStatus("Opening in Safari…");
-    const a = document.createElement('a');
-    a.href = FLIPKART_URL; a.target = "_blank"; a.rel="noopener";
-    document.body.appendChild(a); a.click(); a.remove();
-    return;
-  }
-  // Universal link attempt
-  setStatus("Opening Flipkart…");
-  location.href = FLIPKART_URL;
+  window.location = FLIPKART_URL;
   setTimeout(() => {
     if (document.visibilityState === "hidden") return;
-    setStatus("Get the app from App Store…");
-    location.href = APP_STORE_URL;
+    window.location = APP_STORE_URL;
   }, 1500);
 }
 
-/** ========= Boot ========= **/
+/* ----------- INIT ----------- */
 window.addEventListener('load', () => {
   if (isAndroid()) {
-    openOnAndroid(); // No button shown unless we get stuck
+    openOnAndroid();
   } else if (isIOS()) {
     openOniOS();
   } else {
-    // Desktop / other
     location.replace(FLIPKART_URL);
   }
 });
