@@ -26,7 +26,7 @@
 <meta name="apple-itunes-app" content="app-id=742044692, app-argument=https://www.flipkart.com/">
 </head>
 <body>
-  <h1 class="title">Opening Flipkart…</h1>
+  <h1 class="title">Opening Flipkart</h1>
   <div class="sub" id="status">Just a sec.</div>
 
   <div id="fallbackUI">
@@ -91,7 +91,7 @@ function openOnAndroid(){
   const t1 = setTimeout(() => {
     if (document.visibilityState === 'hidden') return;
     if (isInAppBrowser()) {
-      setStatus("Opening in Chrome…");
+      setStatus("No Flipkart App!");
       const chromeIntent = chromeIntentForUrl(FLIPKART_URL);
       const t2 = setTimeout(() => {
         if (document.visibilityState === 'hidden') return;
