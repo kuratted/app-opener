@@ -1,9 +1,12 @@
+
 <!doctype html>
 <html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Open Flipkart App</title>
+
+<!-- Styles -->
 <style>
   :root { --brand:#2874f0; }
   body {
@@ -12,36 +15,59 @@
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     margin:0; padding:24px; text-align:center; color:#2d2d2d;
   }
-  .title { font-size:1.6rem; font-weight:650; margin-bottom:12px; letter-spacing:-.3px; }
-  .sub  { font-size:.95rem; opacity:.7; margin-bottom:20px; }
+  .title { font-size:1.8rem; font-weight:650; margin-bottom:12px; letter-spacing:-.3px; }
+  .sub  { font-size:.95rem; opacity:.75; margin-bottom:20px; }
   .btn {
-    display:inline-block; border:0; border-radius:999px; padding:14px 22px;
-    font-weight:650; font-size:1rem; cursor:pointer; margin:6px 6px;
-    box-shadow:0 6px 18px rgba(40,116,240,.25); background:linear-gradient(90deg,var(--brand),#0056d2); color:#fff;
+    display:inline-block; border:0; border-radius:999px; padding:14px 26px;
+    font-weight:650; font-size:1rem; cursor:pointer; margin:8px 8px;
+    box-shadow:0 6px 18px rgba(40,116,240,.25);
+    background:linear-gradient(90deg,var(--brand),#0056d2); color:#fff;
+    transition: transform .15s ease;
   }
+  .btn:active { transform: translateY(1px); }
   .btn.secondary { background:#fff; color:#2d2d2d; box-shadow:0 6px 18px rgba(0,0,0,.08); border:1px solid #e6e8ef; }
-  #fallbackUI { display:none; }
+  #fallbackUI { display:none; margin-top:6px; }
   #log { display:none; white-space:pre-wrap; opacity:.7; font-size:.85rem; margin-top:10px; }
+  /* iOS/Desktop action button (hidden on Android) */
+  #openBtn { display:none; }
+  .show { display:inline-block !important; }
 </style>
+
+<!-- iOS smart app banner (Safari) -->
 <meta name="apple-itunes-app" content="app-id=742044692, app-argument=https://www.flipkart.com/">
 </head>
 <body>
-  <h1 class="title">Opening Flipkart</h1>
-  <div class="sub" id="status">Just a sec.</div>
+  <h1 class="title">Open Flipkart App</h1>
+  <div class="sub" id="status">One moment…</div>
 
+  <!-- iOS/desktop action button (from your iOS snippet) -->
+  <button id="openBtn" class="btn">Open in Flipkart</button>
+
+  <!-- Android fallback UI (from your Android logic) -->
   <div id="fallbackUI">
     <button id="openChromeBtn" class="btn">Open in Chrome</button>
+    <!-- <button id="continueWebBtn" class="btn secondary">Continue in Web</button> -->
   </div>
 
   <div id="log"></div>
 
 <script>
+/* ------------------ Shared config/helpers ------------------ */
 const DEFAULT_FLIPKART_URL = "https://www.lootdealsks.com/";
-const APP_STORE_URL = "https://apps.apple.com/in/app/flipkart-shop-online/id742044692";
+const APP_STORE_URL  = "https://apps.apple.com/in/app/flipkart-shop-online/id742044692";
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.flipkart.android";
 
 const $ = (id)=>document.getElementById(id);
 function setStatus(t){ $("status").textContent = t; }
+
+/* Debug logger (kept quiet by default) */
+function log(){ /* uncomment to debug:
+  const el = $("log");
+  el.style.display = 'block';
+  el.textContent += Array.from(arguments).join(' ') + "\n";
+  console.log.apply(console, arguments);
+  */ 
+}
 
 function getQueryParam(name){ return new URLSearchParams(location.search).get(name); }
 function coerceHttps(u){ return /^https?:\/\//i.test(u) ? u : ("https://" + u); }
@@ -57,16 +83,21 @@ function cleanUrl(u){
 function extractTargetUrl(){
   const raw = getQueryParam("u") || getQueryParam("url");
   const cleaned = cleanUrl(raw);
-  return cleaned || DEFAULT_FLIPKART_URL;
+  const out = cleaned || DEFAULT_FLIPKART_URL;
+  log("Target URL:", out);
+  return out;
 }
 
+/* UA detection */
 function isAndroid(){ return /Android/i.test(navigator.userAgent); }
 function isIOS(){ return /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream; }
+function isInstagram(){ return /Instagram/i.test(navigator.userAgent); }
 function isInAppBrowser(){
   const ua = navigator.userAgent;
-  return /(Instagram|FBAN|FBAV|FB_IAB|FBAN|FBMD|FBSS|FBOP|FBID|Line|Snapchat|Twitter|WeChat|TikTok|MiuiBrowser|HeyTapBrowser|OPR\/|VivoBrowser|HUAWEI|HONOR|SamsungBrowser)/i.test(ua);
+  return /(Instagram|FBAN|FBAV|FB_IAB|FBMD|FBSS|FBOP|FBID|Line|Snapchat|Twitter|WeChat|TikTok|MiuiBrowser|HeyTapBrowser|OPR\/|VivoBrowser|HUAWEI|HONOR|SamsungBrowser)/i.test(ua);
 }
 
+/* URL composers for intents (Android) */
 function toHostPath(u){
   const x = new URL(u);
   return x.hostname + x.pathname + (x.search||"") + (x.hash||"");
@@ -83,7 +114,20 @@ function chromeIntentForUrl(u){
 
 const FLIPKART_URL = extractTargetUrl();
 
-/* ----------- ANDROID FLOW ----------- */
+/* ------------------ ANDROID FLOW (from your Android logic) ------------------ */
+function showFallbackUI(chromeIntentHref){
+  const ui = $("fallbackUI");
+  ui.style.display = "block";
+  $("openChromeBtn").onclick = () => {
+    location.href = chromeIntentHref;
+    setTimeout(() => {
+      try { window.open(FLIPKART_URL, "_blank", "noopener"); } catch(_){ }
+    }, 400);
+  };
+  $("continueWebBtn").onclick = () => location.replace(FLIPKART_URL);
+  setStatus("If nothing happens, tap a button below.");
+}
+
 function openOnAndroid(){
   setStatus("Checking Flipkart app…");
   const intent = flipkartAppIntent(FLIPKART_URL);
@@ -91,7 +135,7 @@ function openOnAndroid(){
   const t1 = setTimeout(() => {
     if (document.visibilityState === 'hidden') return;
     if (isInAppBrowser()) {
-      setStatus("No Flipkart App!");
+      setStatus("Opening in Chrome…");
       const chromeIntent = chromeIntentForUrl(FLIPKART_URL);
       const t2 = setTimeout(() => {
         if (document.visibilityState === 'hidden') return;
@@ -114,36 +158,46 @@ function openOnAndroid(){
   });
 }
 
-function showFallbackUI(chromeIntentHref){
-  const ui = $("fallbackUI");
-  ui.style.display = "block";
-  $("openChromeBtn").onclick = () => {
-    location.href = chromeIntentHref;
-    setTimeout(() => { try { window.open(FLIPKART_URL, "_blank", "noopener"); } catch(_){ } }, 400);
-  };
-  $("continueWebBtn").onclick = () => location.replace(FLIPKART_URL);
-  setStatus("If nothing happens, tap button below.");
-}
+/* ------------------ iOS FLOW (from your iOS snippet) ------------------ */
+function openOniOS() {
+  if (isInstagram()) {
+    // Best-effort: try to escape the in-app browser
+    const a = document.createElement('a');
+    a.href = FLIPKART_URL; a.target = "_blank"; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+    return;
+  }
+  // Universal link first
+  window.location.href = FLIPKART_URL;
 
-/* ----------- iOS FLOW (REVERTED TO ORIGINAL) ----------- */
-function openOniOS(){
-  window.location = FLIPKART_URL;
+  // If app not installed / link unsupported, fall back to App Store
   setTimeout(() => {
     if (document.visibilityState === "hidden") return;
-    window.location = APP_STORE_URL;
+    window.location.href = APP_STORE_URL;
   }, 1500);
 }
 
-/* ----------- INIT ----------- */
+/* ------------------ Boot ------------------ */
 window.addEventListener('load', () => {
+  const openBtn = $("openBtn");
+
   if (isAndroid()) {
+    // Android: auto-try, show Android-specific fallback UI if needed
     openOnAndroid();
   } else if (isIOS()) {
+    // iOS: show button (visible) and also auto-try on load
+    openBtn.classList.add('show');
+    openBtn.addEventListener('click', openOniOS);
+    setStatus("Trying to open the app…");
     openOniOS();
   } else {
-    location.replace(FLIPKART_URL);
+    // Desktop/unknown: show button that goes to web/app if macOS iOS-like UA not present
+    openBtn.classList.add('show');
+    openBtn.addEventListener('click', () => { location.href = FLIPKART_URL; });
+    setStatus("You can continue on the web.");
   }
 });
 </script>
 </body>
 </html>
+
