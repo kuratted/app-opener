@@ -128,36 +128,30 @@ function showFallbackUI(chromeIntentHref){
   setStatus("If nothing happens, tap a button below.");
 }
 
-function openOnAndroid(){
-  setStatus("Checking Flipkart app…");
+function openOnAndroid() {
+  setStatus("");
   const intent = flipkartAppIntent(FLIPKART_URL);
 
+  // Try opening the Flipkart app
+  try {
+    location.href = intent;
+  } catch (_) {
+    location.replace(FLIPKART_URL);
+  }
+
+  // If after 100ms the app didn’t open, show fallback instead of auto-opening Chrome
   const t1 = setTimeout(() => {
-    if (document.visibilityState === 'hidden') return;
-    if (isInAppBrowser()) {
-      setStatus("Opening in Chrome…");
-      const chromeIntent = chromeIntentForUrl(FLIPKART_URL);
-      const t2 = setTimeout(() => {
-        if (document.visibilityState === 'hidden') return;
-        try { window.open(FLIPKART_URL, "_blank", "noopener"); } catch(_){}
-        const t3 = setTimeout(() => {
-          if (document.visibilityState === 'hidden') return;
-          showFallbackUI(chromeIntent);
-        }, 100);
-      }, 150);
-      try { location.href = chromeIntent; } catch(_) {}
-    } else {
-      setStatus("Opening on web…");
-      location.replace(FLIPKART_URL);
-    }
+    if (document.visibilityState === 'hidden') return; // App opened successfully
+
+    // Only show a button to open in Chrome, do not trigger automatically
+    showFallbackUI(chromeIntentForUrl(FLIPKART_URL));
   }, 100);
 
-  try { location.href = intent; } catch(_){ location.replace(FLIPKART_URL); }
+  // Stop fallback if page becomes hidden (app opened)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') clearTimeout(t1);
   });
 }
-
 /* ------------------ iOS FLOW (from your iOS snippet) ------------------ */
 function openOniOS() {
   if (isInstagram()) {
