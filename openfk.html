@@ -8,33 +8,74 @@
 
 <!-- Styles -->
 <style>
-  :root { --brand:#2874f0; }
-  body {
-    display:flex; flex-direction:column; justify-content:center; align-items:center;
-    height:100vh; background:linear-gradient(135deg,#f7f9fc,#eef1f7);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    margin:0; padding:24px; text-align:center; color:#2d2d2d;
-  }
-  .title { font-size:1.8rem; font-weight:650; margin-bottom:12px; letter-spacing:-.3px; }
-  .sub  { font-size:.95rem; opacity:.75; margin-bottom:20px; }
-  .btn {
-    	color: #ffffff;
-		background-color: #2d63c8;
-		font-size: 19px;
-		border: 1px solid #2d63c8;
-		padding: 15px 50px;
-    display:inline-block; border:0;
-    font-weight:650; font-size:1rem; cursor:pointer; margin:8px 8px;
-    box-shadow:0 6px 18px rgba(40,116,240,.25);
-    transition: transform .15s ease;
-  }
-  .btn:active { transform: translateY(1px); }
-  .btn.secondary { background:#fff; color:#2d2d2d; box-shadow:0 6px 18px rgba(0,0,0,.08); border:1px solid #e6e8ef; }
-  #fallbackUI { display:none; margin-top:6px; }
-  #log,#status { display:none; white-space:pre-wrap; opacity:.7; font-size:.85rem; margin-top:10px; }
-  /* iOS/Desktop action button (hidden on Android) */
-  #openBtn { display:none; }
-  .show { display:inline-block !important; }
+    :root { --brand: #2874f0; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden; /* ❌ Prevent scrolling */
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #f7f9fc, #eef1f7);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      text-align: center;
+      color: #2d2d2d;
+    }
+    .title {
+      font-size: 1.8rem;
+      font-weight: 650;
+      margin-bottom: 12px;
+      letter-spacing: -0.3px;
+    }
+    .sub {
+      font-size: 0.95rem;
+      opacity: 0.75;
+      margin-top: 10px;
+    }
+    .btn {
+      color: #ffffff;
+      background-color: #2d63c8;
+      font-size: 19px;
+      border: 1px solid #2d63c8;
+      padding: 15px 50px;
+      border-radius: 8px;
+      display: inline-block;
+      font-weight: 650;
+      cursor: pointer;
+      margin: 8px;
+      box-shadow: 0 6px 18px rgba(40, 116, 240, 0.25);
+      transition: transform 0.15s ease;
+    }
+    .btn:active {
+      transform: translateY(1px);
+    }
+    .btn.secondary {
+      background: #fff;
+      color: #2d2d2d;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+      border: 1px solid #e6e8ef;
+    }
+    #fallbackUI {
+      display: none;
+      margin-top: 20px;
+    }
+    #log,
+    #status {
+      display: none;
+      white-space: pre-wrap;
+      opacity: 0.7;
+      font-size: 0.85rem;
+      margin-top: 10px;
+    }
+    #openBtn {
+      display: none;
+    }
+    .show {
+      display: inline-block !important;
+    }
 </style>
 
 <!-- iOS smart app banner (Safari) -->
