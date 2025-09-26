@@ -145,8 +145,9 @@ function openFlipkartApp() {
       const u = new URL(FLIPKART_URL);
       const hostPath = u.hostname + u.pathname + (u.search||'') + (u.hash||'');
       const fallback = encodeURIComponent(FLIPKART_URL);
+      const fallback2 = encodeURIComponent("https://play.google.com/store/apps/details?id=com.flipkart.android&hl=en_IN");
       const intentUri =
-        `intent://${hostPath}#Intent;scheme=https;package=com.flipkart.android;S.browser_fallback_url=${fallback};end`;
+        `intent://${hostPath}#Intent;scheme=https;package=com.flipkart.android;S.browser_fallback_url=${fallback2};end`;
       window.location.href = intentUri;
       return;
     } catch(e) {
