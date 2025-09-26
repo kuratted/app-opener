@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="robots" content="noindex">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Opening Amazon App…</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; padding:24px; text-align:center; }
+    h3 { margin: 0 0 8px; font-weight: 600; }
+    p { margin: 0; opacity: .7; }
+  </style>
+  <script>
+    // -----------------------------
+    // CONFIG
+    // -----------------------------
+    const AMAZON_AFF_TAG = "collab-ks-21"; // change if needed
+    const ENFORCE_TAG = true;              // set false if you DON'T want to inject tag when missing
+
+    // -----------------------------
+    // URL EXTRACTION FROM URL BAR
+    // -----------------------------
+    function getSearchParams(url) {
+      try { return new URL(url).searchParams; } catch { return new URLSearchParams(); }
+    }
+
+    function safeDecode(str) {
+      try { return decodeURIComponent(str); } catch { return str; }
+    }
+
+    function tryBase64Decode(str) {
+      try {
+        if (!/^[A-Za-z0-9+/=]+$/.test(str) || str.length % 4 !== 0) return str;
+        const decoded = atob(str);
+        if (/^https?:\/\//i.test(decoded) || /^www\./i.test(decoded)) return decoded;
+        return str;
+      } catch { return str; }
+    }
+
+    function extractFromPrettyPath() {
+      const path = location.pathname || "";
+      const parts = path.split("/").filter(Boolean);
+      if (parts.length >= 2 && /^(go|r|redirect)$/i.test(parts[0])) {
+        return parts.slice(1).join("/"); // allow slashes in payload
+      }
+      return null;
+    }
+
+    function collectCandidateStrings() {
+      const href = location.href;
+      const sp = getSearchParams(href);
+      const hash = (location.hash || "").replace(/^#/, "");
+      const hashParams = new URLSearchParams(hash);
+
+      const keys = ["url","u","link","l","redirect","r","target","to","q"]; // common keys
+      const candidates = [];
+
+      // query params
+      keys.forEach(k => { const v = sp.get(k); if (v) candidates.push(v); });
+      // hash params (#url=...)
+      keys.forEach(k => { const v = hashParams.get(k); if (v) candidates.push(v); });
+
+      // obvious http(s) substring from the full href
+      const urlMatch = href.match(/https?:\/\/[^\s"'<>]+/i);
+      if (urlMatch) candidates.push(urlMatch[0]);
+
+      // pretty path
+      const pretty = extractFromPrettyPath();
+      if (pretty) candidates.push(pretty);
+
+      // de-dup while preserving order
+      return [...new Set(candidates.filter(Boolean))];
+    }
+
+    function normalizeToUrl(raw) {
+      if (!raw) return null;
+      raw = raw.trim().replace(/^['"]|['"]$/g, "");
+
+      let decoded = safeDecode(raw);
+      decoded = tryBase64Decode(decoded);
+      decoded = safeDecode(decoded);
+
+      // add scheme if missing
+      if (!/^https?:\/\//i.test(decoded)) {
+        if (/^www\./i.test(decoded)) decoded = "https://" + decoded;
+      }
+
+      try {
+        const u = new URL(decoded);
+        return u.href;
+      } catch {
+        return null;
+      }
+    }
+
+    function pickMainUrl() {
+      const candidates = collectCandidateStrings();
+      for (const c of candidates) {
+        const u = normalizeToUrl(c);
+        if (!u) continue;
+        if (/\/\/([a-z0-9-]+\.)*amazon\./i.test(u)) return u; // prefer Amazon
+      }
+      for (const c of candidates) {
+        const u = normalizeToUrl(c);
+        if (u) return u;
+      }
+      return null;
+    }
+
+    // -----------------------------
+    // AMAZON NORMALIZATION + TAG
+    // -----------------------------
+    function ensureAmazonAffiliateTag(urlStr) {
+      try {
+        const u = new URL(urlStr);
+        const isAmazon = /(^|\.)amazon\./i.test(u.hostname);
+        if (!isAmazon) return urlStr;
+
+        if (!u.searchParams.has("tag") && ENFORCE_TAG && AMAZON_AFF_TAG) {
+          u.searchParams.set("tag", AMAZON_AFF_TAG);
+        }
+        return u.toString();
+      } catch {
+        return urlStr;
+      }
+    }
+
+    // -----------------------------
+    // DEVICE / BROWSER HELPERS
+    // -----------------------------
+    function detectDevice() {
+      const ua = navigator.userAgent || navigator.vendor || window.opera;
+      if (/android/i.test(ua)) return "android";
+      if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) return "ios";
+      return "desktop";
+    }
+    function isFbBrowser() { return /FBAN|FBAV/i.test(navigator.userAgent); }
+
+    // -----------------------------
+    // SINGLE-SHOT OPEN LOGIC (prevents double open)
+    // -----------------------------
+    let started = false;
+    let timers = [];
+    const addTimer = (fn, ms) => { const id = setTimeout(fn, ms); timers.push(id); };
+    const cancelTimers = () => { timers.forEach(clearTimeout); timers = []; };
+
+    function buildAppLink(mainUrl) {
+      // Amazon app scheme (used for iOS path)
+      return "com.amazon.mobile.shopping.web://" + mainUrl.replace(/^https?:\/\//i, "");
+    }
+
+    function pickAmazonAndroidPackage(hostname) {
+      // Choose package to reduce chooser popups. Defaults to India; switch for non-.in hosts.
+      const isIN = /\.amazon\.in$/i.test(hostname) || /(^|\.)amazon\.in$/i.test(hostname);
+      return isIN ? "in.amazon.mShop.android.shopping" : "com.amazon.mShop.android.shopping";
+    }
+
+    function buildAndroidIntent(mainUrl) {
+      const u = new URL(mainUrl);
+      const pkg = pickAmazonAndroidPackage(u.hostname);
+      const noScheme = mainUrl.replace(/^https?:\/\//i, "");
+      // Single-shot intent with web fallback only
+      return `intent://${noScheme}#Intent;scheme=https;package=${pkg};S.browser_fallback_url=${encodeURIComponent(mainUrl)};end`;
+    }
+
+    function redirect() {
+      let mainUrl = pickMainUrl() || "https://www.amazon.in/";
+      mainUrl = ensureAmazonAffiliateTag(mainUrl);
+
+      const device = detectDevice();
+      const isFbMios = /FBCR/i.test(navigator.userAgent) && /iPhone/i.test(navigator.userAgent); // FB Messenger iOS quirk
+
+      // Cancel fallbacks as soon as the page is hidden (app took focus / nav away)
+      const onHidden = () => { if (document.hidden) cancelTimers(); };
+      document.addEventListener("visibilitychange", onHidden, { passive: true });
+      window.addEventListener("pagehide", cancelTimers, { once: true, passive: true });
+
+      if (device === "desktop" || isFbMios) {
+        location.replace(mainUrl);
+        return;
+      }
+
+      if (device === "android") {
+        if (started) return;
+        started = true;
+
+        const intentUrl = buildAndroidIntent(mainUrl);
+        // Try app via intent once
+        location.href = intentUrl;
+
+        // If still visible after a short wait, app didn't open → go web once
+        addTimer(() => {
+          if (document.visibilityState === "visible") location.replace(mainUrl);
+        }, 900);
+
+        return;
+      }
+
+      // iOS path (scheme first, then web if page stays visible)
+      if (device === "ios") {
+        if (started) return;
+        started = true;
+
+        const schemeUrl = buildAppLink(mainUrl);
+        location.href = schemeUrl;
+
+        addTimer(() => {
+          if (document.visibilityState === "visible") location.replace(mainUrl);
+        }, 900);
+
+        return;
+      }
+    }
+
+    if (document.readyState === "complete") {
+      redirect();
+    } else {
+      window.addEventListener("load", redirect, { once: true });
+    }
+  </script>
+</head>
+<body>
+  <h3>Opening Amazon App…</h3>
+  <p>If nothing happens, you’ll be redirected to the website.</p>
+</body>
+</html>
