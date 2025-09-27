@@ -150,7 +150,7 @@ function toHostPath(u){
 }
 function flipkartAppIntent(u){
   const hostPath = toHostPath(u);
-  const storeFallback = encodeURIComponent(PLAY_STORE_URL);
+  const storeFallback = encodeURIComponent(u);
   return `intent://${hostPath}#Intent;scheme=https;package=com.flipkart.android;S.browser_fallback_url=${storeFallback};end`;
 }
 function chromeIntentForUrl(u){
